@@ -17,9 +17,10 @@ import pandas as pd
 
 from fda_agent.config import (
     DB_PATH,
-    PROCESSED_DIR,
+    KNOWN_UNRESOLVED_APPLICANTS,
     RAW_FDA_DIR,
     SCHEMA_VERSION,
+    SOURCE_PRECEDENCE,
     V1_PATHWAY,
 )
 
@@ -84,6 +85,45 @@ def _recover_regulation_number(value: object) -> str | None:
     return f"{float(value):.4f}"
 
 
+def resolve_company_names(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Make `company_name` a function of `applicant_raw`.
+
+    The supplied mapping was built by unioning several passes without a precedence
+    rule, so 16 applicant strings carry more than one clean_name and company-level
+    aggregates split. Owner ruling 2026-08-27: the highest-precedence source in
+    SOURCE_PRECEDENCE wins.
+
+    Where the top-precedence source disagrees with itself the rule cannot decide,
+    and those rows are left untouched rather than resolved arbitrarily. Returns the
+    frame and the sorted list of applicants still unresolved.
+    """
+    rank = {src: i for i, src in enumerate(SOURCE_PRECEDENCE)}
+    unknown = set(df["company_name_source"].dropna()) - set(rank)
+    if unknown:
+        raise ValueError(
+            f"company_name_source values missing from SOURCE_PRECEDENCE: {sorted(unknown)}"
+        )
+
+    ambiguous = df.groupby("applicant_raw")["company_name"].nunique()
+    ambiguous = set(ambiguous[ambiguous > 1].index)
+
+    df = df.copy()
+    unresolved: list[str] = []
+
+    for applicant in sorted(ambiguous):
+        rows = df[df["applicant_raw"] == applicant]
+        best = min(rows["company_name_source"], key=lambda s: rank[s])
+        winners = rows.loc[rows["company_name_source"] == best, "company_name"].unique()
+        if len(winners) != 1:
+            # The authoritative pass contradicts itself; no defensible winner.
+            unresolved.append(applicant)
+            continue
+        df.loc[df["applicant_raw"] == applicant, "company_name"] = winners[0]
+        df.loc[df["applicant_raw"] == applicant, "company_name_source"] = best
+
+    return df, unresolved
+
+
 def transform(df: pd.DataFrame) -> pd.DataFrame:
     """Full-file frame -> the V1 510(k) table."""
     missing = set(COLUMN_MAP) - set(df.columns)
@@ -102,7 +142,17 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
     for col in out.select_dtypes(include="object").columns:
         out[col] = out[col].astype("string").str.strip()
 
-    return out.sort_values("regnumber").reset_index(drop=True)
+    out = out.sort_values("regnumber").reset_index(drop=True)
+    out, unresolved = resolve_company_names(out)
+
+    unexpected = set(unresolved) - KNOWN_UNRESOLVED_APPLICANTS
+    if unexpected:
+        raise ValueError(
+            "new company-name ambiguity the precedence rule cannot settle: "
+            f"{sorted(unexpected)} — rule on it in docs/open-questions/company-mapping.md"
+        )
+    out.attrs["unresolved_applicants"] = sorted(unresolved)
+    return out
 
 
 def validate(df: pd.DataFrame) -> None:
@@ -147,6 +197,7 @@ def load(source: Path, db_path: Path = DB_PATH, *, echo: bool = True) -> dict:
         "decision_date_min": str(df["decision_date"].min()),
         "decision_date_max": str(df["decision_date"].max()),
         "distinct_companies": int(df["company_name"].nunique()),
+        "unresolved_applicants": ";".join(df.attrs.get("unresolved_applicants", [])) or "none",
     }
 
     db_path.parent.mkdir(parents=True, exist_ok=True)

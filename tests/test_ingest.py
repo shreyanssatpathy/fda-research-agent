@@ -9,9 +9,14 @@ import duckdb
 import pandas as pd
 import pytest
 
-from fda_agent.config import DB_PATH, V1_PATHWAY
+from fda_agent.config import DB_PATH, KNOWN_UNRESOLVED_APPLICANTS, V1_PATHWAY
 from fda_agent.db import connect
-from fda_agent.ingest import _recover_regulation_number, transform, validate
+from fda_agent.ingest import (
+    _recover_regulation_number,
+    resolve_company_names,
+    transform,
+    validate,
+)
 
 pytestmark = pytest.mark.skipif(
     not DB_PATH.exists(), reason="database not built; run python -m fda_agent.ingest"
@@ -112,3 +117,58 @@ def test_validate_rejects_duplicate_regnumber():
 def test_transform_rejects_missing_columns():
     with pytest.raises(ValueError, match="missing expected columns"):
         transform(pd.DataFrame({"PATHWAY": [V1_PATHWAY]}))
+
+
+# --- company-name precedence (owner ruling 2026-08-27) --------------------------
+
+
+def test_company_name_is_a_function_of_applicant(rows):
+    """One applicant string must yield one company name.
+
+    Only the three applicants where the authoritative pass contradicts itself are
+    permitted to remain split; anything else is a regression.
+    """
+    counts = rows.groupby("applicant_raw")["company_name"].nunique()
+    split = set(counts[counts > 1].index)
+    assert split == set(KNOWN_UNRESOLVED_APPLICANTS)
+
+
+def test_precedence_picks_the_authoritative_name(rows):
+    """Spot-check cases the rule settled, across each losing source."""
+    expected = {
+        "RAYSEARCH LABORATORIES AB (PUBL)": "Raysearch Laboratories",  # beat pre-existing
+        "VIZ. AI, INC.": "Viz.Ai",                                    # beat pre-existing
+        "BODYVISION MEDICAL , LTD.": "Body Vision Medical",           # beat cleaning_script
+        "SCOPIO LABS , LTD.": "Scopio",                               # beat AI_suggested
+        "SPECTRUM DYNAMICS MEDICAL, LTD.": "Spectrum Dynamics Medical",  # beat manual_review
+    }
+    for applicant, name in expected.items():
+        got = set(rows.loc[rows["applicant_raw"] == applicant, "company_name"])
+        assert got == {name}, f"{applicant}: {got}"
+
+
+def test_resolver_rejects_unknown_source():
+    df = pd.DataFrame(
+        {
+            "applicant_raw": ["A CO", "A CO"],
+            "company_name": ["A", "B"],
+            "company_name_source": ["ming-mapping", "some-new-pass"],
+        }
+    )
+    with pytest.raises(ValueError, match="SOURCE_PRECEDENCE"):
+        resolve_company_names(df)
+
+
+def test_resolver_leaves_self_contradicting_source_alone():
+    """When the top-precedence pass disagrees with itself there is no defensible
+    winner, so the rows stay split and are reported rather than guessed at."""
+    df = pd.DataFrame(
+        {
+            "applicant_raw": ["A CO", "A CO"],
+            "company_name": ["A", "B"],
+            "company_name_source": ["ming-mapping", "ming-mapping"],
+        }
+    )
+    out, unresolved = resolve_company_names(df)
+    assert unresolved == ["A CO"]
+    assert set(out["company_name"]) == {"A", "B"}

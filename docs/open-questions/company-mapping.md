@@ -8,44 +8,45 @@ leaves both, `FIX -> <name>` supplies a name that appears in neither.
 
 ---
 
-## Part A — the mapping is not a function (16 cases, 61 rows)
+## Part A — RESOLVED 2026-08-27 by precedence rule
 
-These are not judgment calls. The **same** `APPLICANT` string produces **different**
-`clean_name` values on different rows, so identical input yields different output.
-Any company-scoped query splits or double-counts depending on which rows it hits.
+Owner ruling: **`ming-mapping` is the authoritative source.** Where one
+`applicant_raw` carried several `clean_name` values, the value from the
+highest-precedence source wins. Order is in `SOURCE_PRECEDENCE`
+(`src/fda_agent/config.py`):
 
-Root cause is visible in `clean_name_source`: 14 of the 16 mix two provenances
-(usually `ming-mapping` against `pre-existing`), so passes were unioned without a
-precedence rule. Fixing precedence fixes most of this class permanently.
+```
+ming-mapping > manual_review > pre-existing > cleaning_script > AI_suggested
+```
 
-| # | APPLICANT | maps to | decision |
-|---|---|---|---|
-| A1 | `AXIAL MEDICAL PRINTING LIMITED` | `Axial3D` (2) / `Axial Medical Printing` (1) | |
-| A2 | `BODYVISION MEDICAL , LTD.` | `Body Vision Medical` (2) / `Bodyvision Medical` (1) | |
-| A3 | `EKO HEALTH, INC.` | `Eko Health` (1) / `Eko` (1) | |
-| A4 | `EKO.AI PTE LTD. D/B/A US2.AI` | `Eko.ai` (2) / `Us2.ai` (1) | |
-| A5 | `EMPATICA S.R.L.` | `Empatica S. R. L` (2) / `Empatica` (2) | |
-| A6 | `FUJIFILM HEALTHCARE CORPORATION` | `Fujifilm Healthcare` (1) / `Fujifilm` (1) | |
-| A7 | `ITERATIVE SCOPES, INC.` | `Iterative Scopes` (2) / `Iterative Health` (2) | |
-| A8 | `KOIOS MEDICAL, INC.` | `Clearview` (2) / `Koios Medical` (1) | |
-| A9 | `QURE.AI TECHNOLOGIES` | `Qure.AI` (7) / `Qure. Ai` (1) | |
-| A10 | `RAYSEARCH LABORATORIES AB (PUBL)` | `Raysearch Laboratories` (7) / `Raysearch` (1) | |
-| A11 | `SAMSUNG ELECTRONICS CO., LTD.` | `Samsung Medison` (1) / `Samsung` (1) | |
-| A12 | `SCOPIO LABS , LTD.` | `Scopio` (2) / `Scopio Labs` (1) | |
-| A13 | `SMART SOFT HEALTHCARE AD` | `Smart Soft Healthcare` (1) / `Smart Soft Healthcare Ad` (1) | |
-| A14 | `SOFTWARE NEMOTEC S.L.` | `Nemotec` (1) / `Software Nemotec` (1) | |
-| A15 | `SPECTRUM DYNAMICS MEDICAL, LTD.` | `Spectrum Dynamics Medical` (1) / `Spectrum Dynamics` (1) | |
-| A16 | `VIZ. AI, INC.` | `Viz.Ai` (9) / `Viz. Ai` (1) | |
+This settled **13 of the 16** cases and is enforced in the loader, so the class
+cannot recur silently. Distinct companies went 485 -> 473.
 
-Two worth a second look:
+### Still open — the rule cannot settle these (3 applicants)
 
-- **A8** — `KOIOS MEDICAL, INC.` mapping to `Clearview` looks like a product name
-  leaked into the company field rather than a rename.
-- **A11** — `SAMSUNG ELECTRONICS CO., LTD.` mapping to `Samsung Medison` is wrong
-  in one direction regardless: the parent and the medical subsidiary are distinct
-  legal entities and Samsung Medison files under its own name elsewhere in the data.
+`ming-mapping` returns **two different names for the same applicant**, so there is
+no higher authority to defer to. The loader leaves these split and reports them;
+a fourth case appearing fails the build.
 
----
+| applicant | ming-mapping returns | decision |
+|---|---|---|
+| `ITERATIVE SCOPES, INC.` | `Iterative Health` (2) / `Iterative Scopes` (2) | |
+| `SAMSUNG ELECTRONICS CO., LTD.` | `Samsung` (1) / `Samsung Medison` (1) | |
+| `SOFTWARE NEMOTEC S.L.` | `Nemotec` (1) / `Software Nemotec` (1) | |
+
+### Two outcomes of the rule worth a second look
+
+Both follow the ruling as given; flagging the results, not reopening the rule.
+
+- **`KOIOS MEDICAL, INC.` now resolves to `Clearview`.** ClearView Diagnostics
+  appears to be the company's *former* name, so the rule canonicalizes to the
+  older identity rather than the current one. If canonical names should be
+  current-name, this one wants an override.
+- **`SPECTRUM DYNAMICS MEDICAL, LTD.` — an automated pass overrode a human one.**
+  `manual_review` said `Spectrum Dynamics`; `ming-mapping` won with
+  `Spectrum Dynamics Medical`. The outcome matches the filed name so it looks
+  right here, but the precedence order does rank an automated pass above human
+  review generally.
 
 ## Part B — distinct APPLICANTs, possibly one company (needs judgment)
 

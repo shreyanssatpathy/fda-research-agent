@@ -8,7 +8,7 @@ Amend with a dated note. Never diverge silently.
 
 - schema_version: `1.0.0`
 - grain: **one row per 510(k) clearance**, keyed by `regnumber`
-- rows: 1367 | companies: 485 | coverage: 2010-05-12 to 2025-12-30
+- rows: 1367 | companies: 473 | coverage: 2010-05-12 to 2025-12-30
 
 ## What this table is
 
@@ -43,7 +43,7 @@ device corpus and **not** all submissions by these companies.
 | `pathway` | TEXT | Always `510(k)` in V1. Retained so the filter is visible. |
 | `applicant_raw` | TEXT | Company name exactly as filed. **Do not filter on this.** |
 | `company_name` | TEXT | Normalized company. **The company dimension.** |
-| `company_name_source` | TEXT | How `company_name` was derived. Provenance, not analysis. |
+| `company_name_source` | TEXT | Winning source under `SOURCE_PRECEDENCE`. Provenance, not analysis. |
 | `street`, `city`, `state`, `zip` | TEXT | Applicant address as filed. `state` is null for non-US filers. |
 | `country` | TEXT | Two-letter code. US 626, IL 110, FR 88, CN 72, KR 68. |
 | `committee_code` | TEXT | FDA advisory committee code. |
@@ -90,7 +90,14 @@ value round-trips through. Still 44% null.
 
 ## Known defects, not yet resolved
 
-`company_name` has open defects recorded in
-[`../open-questions/company-mapping.md`](../open-questions/company-mapping.md):
-16 `applicant_raw` values map to more than one `company_name` (61 rows). Until
-those are ruled on, company-level aggregates for the affected names are split.
+`company_name` is a function of `applicant_raw` for every applicant but three.
+The `ming-mapping` precedence rule (owner ruling 2026-08-27) settled 13 of the 16
+original conflicts; see
+[`../open-questions/company-mapping.md`](../open-questions/company-mapping.md).
+
+Still split, because the authoritative source contradicts itself:
+`ITERATIVE SCOPES, INC.`, `SAMSUNG ELECTRONICS CO., LTD.`, `SOFTWARE NEMOTEC S.L.`
+Company-level aggregates for those six rows are unreliable until ruled on.
+
+Part B of that document — whether subsidiaries roll up to parents — is unaffected
+by the precedence rule and remains open.
