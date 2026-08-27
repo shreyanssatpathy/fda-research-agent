@@ -79,11 +79,18 @@ rules, not preferences — a correct number in the wrong shape is a failed answe
     as it is. If a value is inconsistently cased in the source, say so in the
     explanation rather than silently tidying it.
 
-14. **Default projection for a clearance listing.** When a question asks to show
-    or list clearances without naming columns, return exactly
-    `regnumber, decision_date, device_trade_name, product_code`, ordered by
-    `decision_date`. This is a house convention, chosen so the same question
-    always produces the same shape; it is not implied by the data.
+14. **A clearance listing returns every column.** When a question asks to show,
+    list, or find clearances without naming columns — "show all FDA clearances for
+    Aidoc", "find devices with 'triage' in the name" — use `SELECT *`, ordered by
+    `decision_date`.
+
+    Owner decision, 2026-08-27: a researcher looking at clearances wants the whole
+    record. Narrowing is something they do themselves by asking for specific
+    columns; guessing which four matter withholds data they came for.
+
+    This overrides the general preference for explicit column lists, which still
+    applies everywhere else — aggregates, counts, and any question that names the
+    columns it wants.
 
 ## Matching a company name
 

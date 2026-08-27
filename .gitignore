@@ -19,3 +19,6 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# Per-model eval outputs (regenerate with evals/run.py)
+evals/results*.json

@@ -1,4 +1,5 @@
 """Paths and constants. No logic here."""
+import os
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -19,7 +20,9 @@ TABLE_ALLOWLIST = frozenset({"fda_510k"})
 
 # LLM. Opus 5 is the default; change deliberately, and update PRICING in
 # llm/budget.py in the same edit so spend is never undercounted.
-MODEL_ID = "claude-opus-5"
+# Override with FDA_MODEL to compare models on the eval set. The model is part
+# of the LLM cache key, so switching does not serve another model's answers.
+MODEL_ID = os.environ.get("FDA_MODEL", "claude-opus-5")
 
 # Enforced on every generated query.
 MAX_ROWS = 1000

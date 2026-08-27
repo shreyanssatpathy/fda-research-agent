@@ -176,3 +176,29 @@ means, not on how to express it.
 
 These are recorded, not fixed. Fixing them means rewording the questions, which
 would make v2 incomparable to v1 — that belongs in a v3, if ever.
+
+
+## v2 partially superseded by a contract change (2026-08-27)
+
+**M01 and D05 now fail by design.** Owner decision: a clearance listing returns
+*every* column, because a researcher wants the whole record and will narrow it
+themselves. Contract rule 14 changed from a four-column default projection to
+`SELECT *`.
+
+Both cases froze the old four-column expectation, so their expected answers no
+longer describe correct behaviour. They are **left failing rather than edited** —
+v2 is frozen, and the honest reading is "two cases are stale", not "the system
+regressed".
+
+Fixing this means a v3 with those two references regenerated. Until then, read the
+v2 ceiling as 36/38, not 38/38.
+
+## Run-to-run variance
+
+Repeat runs of the same model on the same set differ by roughly **±3 cases**.
+Observed: Opus 5 scored 36/38 and 33/38 on runs whose only difference was
+unrelated, with cases flipping in both directions — F02 and F04 (whether a first-
+clearance answer includes the date column) and G01 are the unstable ones.
+
+Treat a single run as an estimate. A one- or two-case delta is not a signal; re-run
+before concluding a change helped.

@@ -28,7 +28,8 @@ Choose exactly one action.
 `sql` — the question is answerable from the table.
   - Write a single SELECT against `fda_510k`. No other table exists.
   - Follow every rule in the contract's "Rules the generated SQL must follow".
-  - Prefer explicit column lists over SELECT *.
+  - Prefer explicit column lists over SELECT *, except for clearance listings
+    (contract rule 14), where `SELECT *` is required.
   - Put any qualification the SQL cannot express into `caveats` — for example that
     "first clearance" means first AI-enabled 510(k) in this dataset, or that a
     column used for grouping is substantially null.

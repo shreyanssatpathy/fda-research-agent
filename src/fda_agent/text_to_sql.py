@@ -12,7 +12,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from fda_agent.config import MODEL_ID, SCHEMA_VERSION
+from fda_agent import config
+from fda_agent.config import SCHEMA_VERSION
 from fda_agent.llm.budget import Budget, BudgetExceeded, Usage
 from fda_agent.llm.cache import ResponseCache, cache_key
 from fda_agent.prompts import PROMPT_VERSION, build_system_prompt, contract_hash
@@ -100,6 +101,18 @@ def _default_client():
     return anthropic.Anthropic(default_headers=headers)
 
 
+# `output_config.effort` is rejected by models that predate it (Haiku 4.5 returns
+# a 400). Omitted rather than defaulted, so those models still work.
+SUPPORTS_EFFORT = (
+    "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
+    "claude-sonnet-5", "claude-sonnet-4-6", "claude-fable-5",
+)
+
+
+def supports_effort(model: str) -> bool:
+    return model in SUPPORTS_EFFORT
+
+
 def _request_payload(question: str, system: str, effort: str) -> dict:
     """Everything that determines the answer, and nothing that does not.
 
@@ -107,7 +120,7 @@ def _request_payload(question: str, system: str, effort: str) -> dict:
     make every key unique and silently disable the cache.
     """
     return {
-        "model": MODEL_ID,
+        "model": config.MODEL_ID,
         "prompt_version": PROMPT_VERSION,
         "contract_hash": contract_hash(),
         "effort": effort,
@@ -135,14 +148,15 @@ def generate(
     cache = cache or ResponseCache()
     budget = budget or Budget()
     system = build_system_prompt()
-    payload = _request_payload(question, system, effort)
+    effective_effort = effort if supports_effort(config.MODEL_ID) else None
+    payload = _request_payload(question, system, effective_effort)
     key = cache_key(payload)
 
     if use_cache and (hit := cache.get(key)) is not None:
         return Generation(
             question=question,
             decision=SqlDecision.model_validate(hit),
-            model_id=MODEL_ID,
+            model_id=config.MODEL_ID,
             prompt_version=PROMPT_VERSION,
             schema_version=SCHEMA_VERSION,
             contract_hash=payload["contract_hash"],
@@ -154,8 +168,11 @@ def generate(
     if client is None:
         client = _default_client()
 
+    extra = (
+        {"output_config": {"effort": effective_effort}} if effective_effort else {}
+    )
     response = client.messages.parse(
-        model=MODEL_ID,
+        model=config.MODEL_ID,
         max_tokens=4096,
         system=[
             # Stable prefix: the contract does not change between questions, so
@@ -163,9 +180,9 @@ def generate(
             # after the breakpoint.
             {"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}
         ],
-        output_config={"effort": effort},
         messages=[{"role": "user", "content": question}],
         output_format=SqlDecision,
+        **extra,
     )
 
     decision = response.parsed_output
@@ -175,13 +192,13 @@ def generate(
         cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
         cache_write_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
     )
-    cost = budget.record(usage, MODEL_ID)
+    cost = budget.record(usage, config.MODEL_ID)
 
     cache.put(
         key,
         decision.model_dump(),
         meta={
-            "model_id": MODEL_ID,
+            "model_id": config.MODEL_ID,
             "prompt_version": PROMPT_VERSION,
             "schema_version": SCHEMA_VERSION,
             "contract_hash": payload["contract_hash"],
@@ -192,7 +209,7 @@ def generate(
     return Generation(
         question=question,
         decision=decision,
-        model_id=MODEL_ID,
+        model_id=config.MODEL_ID,
         prompt_version=PROMPT_VERSION,
         schema_version=SCHEMA_VERSION,
         contract_hash=payload["contract_hash"],
