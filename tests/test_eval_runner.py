@@ -56,7 +56,11 @@ def test_scorer_rejects_right_shape_wrong_values():
     )
     ok, detail = score_answer(case, wrong.rows)
     assert not ok
-    assert "values differ" in detail
+    # The message must name the first row that actually differs, not row 0
+    # unconditionally — reporting two identical tuples as a mismatch sends
+    # debugging in the wrong direction.
+    assert "differs" in detail
+    assert "1367" in detail and "219" in detail
 
 
 def test_scorer_ignores_column_naming():
