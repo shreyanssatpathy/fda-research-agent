@@ -1,5 +1,6 @@
-# Data — never committed
-data/
+# Data — never committed. Only the layout README is tracked.
+data/*
+!data/README.md
 
 # Python
 __pycache__/
