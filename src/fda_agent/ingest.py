@@ -207,7 +207,13 @@ def load(source: Path, db_path: Path = DB_PATH, *, echo: bool = True) -> dict:
     con = duckdb.connect(str(db_path))
     try:
         con.register("staged", df)
-        con.execute("CREATE TABLE fda_510k AS SELECT * FROM staged")
+        # Cast explicitly. A bare CREATE AS SELECT infers VARCHAR for the date
+        # columns, which silently breaks every date function in generated SQL.
+        cols = ", ".join(
+            f"CAST({c} AS DATE) AS {c}" if c in ("date_received", "decision_date") else c
+            for c in df.columns
+        )
+        con.execute(f"CREATE TABLE fda_510k AS SELECT {cols} FROM staged")
         con.execute("CREATE TABLE ingest_metadata (key TEXT, value TEXT)")
         con.executemany(
             "INSERT INTO ingest_metadata VALUES (?, ?)",

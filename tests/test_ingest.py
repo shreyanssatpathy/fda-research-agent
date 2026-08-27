@@ -64,11 +64,33 @@ def test_recover_regulation_number_pads_lost_zero():
     assert _recover_regulation_number(float("nan")) is None
 
 
-def test_dates_are_dates(rows):
-    assert pd.api.types.is_datetime64_any_dtype(
-        pd.to_datetime(rows["decision_date"], errors="raise")
-    )
-    assert (rows["decision_date"] <= rows["date_received"].max()).any()
+def test_dates_are_stored_as_date_type():
+    """Check the stored SQL type, not the pandas view.
+
+    Converting with pd.to_datetime first would pass on VARCHAR columns and hide
+    the defect; generated SQL calling year() or date_diff() would then fail.
+    """
+    with connect() as con:
+        types = dict(
+            con.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_name = 'fda_510k'"
+            ).fetchall()
+        )
+    assert types["decision_date"] == "DATE"
+    assert types["date_received"] == "DATE"
+
+
+def test_date_functions_work_in_sql():
+    """The failure this guards against is generated SQL, not the loader."""
+    with connect() as con:
+        n = con.execute(
+            "SELECT count(*) FROM fda_510k WHERE year(decision_date) = 2023"
+        ).fetchone()[0]
+        assert n > 0
+        assert con.execute(
+            "SELECT max(date_diff('day', date_received, decision_date)) FROM fda_510k"
+        ).fetchone()[0] > 0
 
 
 def test_coverage_boundary_is_end_of_2025(rows):

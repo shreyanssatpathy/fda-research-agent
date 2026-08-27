@@ -1,0 +1,765 @@
+schema_version: 1.0.0
+frozen: false
+note: Draft awaiting owner review. Once frozen, never regenerate or edit to improve a score (CLAUDE.md).
+  Expected answers were executed against the database, not authored by hand.
+cases:
+- id: C01
+  category: count
+  question: How many AI-enabled devices have been cleared through 510(k)?
+  note: null
+  expects: answer
+  reference_sql: SELECT count(*) AS n FROM fda_510k
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 1367
+    truncated: false
+- id: C02
+  category: count
+  question: How many distinct companies have AI 510(k) clearances?
+  note: null
+  expects: answer
+  reference_sql: SELECT count(DISTINCT company_name) AS n FROM fda_510k
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 473
+    truncated: false
+- id: C03
+  category: count
+  question: How many AI devices were cleared in 2023?
+  note: null
+  expects: answer
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE decision_year = 2023
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 219
+    truncated: false
+- id: C04
+  category: count
+  question: How many AI clearances went through the Third Party Review Program?
+  note: null
+  expects: answer
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE third_party
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 19
+    truncated: false
+- id: C05
+  category: count
+  question: How many Special 510(k) submissions are there?
+  note: null
+  expects: answer
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE submission_type = 'Special'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 160
+    truncated: false
+- id: M01
+  category: company
+  question: Show all FDA clearances for Aidoc.
+  note: Company filters must use company_name, not applicant_raw.
+  expects: answer
+  reference_sql: SELECT regnumber, decision_date, device_trade_name, product_code FROM fda_510k WHERE
+    lower(company_name) LIKE '%aidoc%' ORDER BY decision_date
+  expected_answer:
+    row_count: 31
+    columns:
+    - regnumber
+    - decision_date
+    - device_trade_name
+    - product_code
+    rows:
+    - regnumber: K180647
+      decision_date: '2018-08-01'
+      device_trade_name: BriefCase
+      product_code: QAS
+    - regnumber: K190072
+      decision_date: '2019-04-15'
+      device_trade_name: BriefCase
+      product_code: QAS
+    - regnumber: K190896
+      decision_date: '2019-05-31'
+      device_trade_name: BriefCase
+      product_code: QAS
+    - regnumber: K192383
+      decision_date: '2019-12-20'
+      device_trade_name: BriefCase
+      product_code: QAS
+    - regnumber: K193298
+      decision_date: '2020-06-19'
+      device_trade_name: BriefCase
+      product_code: QAS
+    - regnumber: K201020
+      decision_date: '2020-08-26'
+      device_trade_name: BriefCase
+      product_code: QAS
+    - regnumber: K203508
+      decision_date: '2020-12-29'
+      device_trade_name: BriefCase
+      product_code: QAS
+    - regnumber: K202992
+      decision_date: '2021-04-14'
+      device_trade_name: BriefCase, RIB Fractures Triage (RibFx)
+      product_code: QFM
+    - regnumber: K214043
+      decision_date: '2022-03-14'
+      device_trade_name: BriefCase
+      product_code: QFM
+    - regnumber: K213721
+      decision_date: '2022-03-21'
+      device_trade_name: BriefCase
+      product_code: QAS
+    - regnumber: K213886
+      decision_date: '2022-04-26'
+      device_trade_name: BriefCase
+      product_code: QAS
+    - regnumber: K221240
+      decision_date: '2022-05-17'
+      device_trade_name: BriefCase
+      product_code: QAS
+    truncated: true
+- id: M02
+  category: company
+  question: Which companies have the most AI device clearances?
+  note: null
+  expects: answer
+  reference_sql: SELECT company_name, count(*) AS n FROM fda_510k GROUP BY 1 ORDER BY n DESC, company_name
+    LIMIT 10
+  expected_answer:
+    row_count: 10
+    columns:
+    - company_name
+    - n
+    rows:
+    - company_name: GE Healthcare
+      n: 95
+    - company_name: Siemens
+      n: 84
+    - company_name: Canon Medical Systems
+      n: 38
+    - company_name: Philips
+      n: 38
+    - company_name: United Imaging
+      n: 38
+    - company_name: Aidoc Medical
+      n: 31
+    - company_name: Ischema View
+      n: 19
+    - company_name: Samsung Medison
+      n: 18
+    - company_name: Hyperfine
+      n: 13
+    - company_name: Clarius Mobile Health
+      n: 11
+    truncated: false
+- id: M03
+  category: company
+  question: How many clearances does GE Healthcare have?
+  note: 15 applicant_raw spellings collapse here; filtering the raw field undercounts.
+  expects: answer
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE company_name = 'GE Healthcare'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 95
+    truncated: false
+- id: M04
+  category: company
+  question: How many companies have only ever had one AI clearance?
+  note: null
+  expects: answer
+  reference_sql: SELECT count(*) AS n FROM (SELECT company_name FROM fda_510k GROUP BY 1 HAVING count(*)
+    = 1)
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 261
+    truncated: false
+- id: M05
+  category: company
+  question: List companies with at least 10 AI clearances.
+  note: null
+  expects: answer
+  reference_sql: SELECT company_name, count(*) AS n FROM fda_510k GROUP BY 1 HAVING count(*) >= 10 ORDER
+    BY n DESC, company_name
+  expected_answer:
+    row_count: 16
+    columns:
+    - company_name
+    - n
+    rows:
+    - company_name: GE Healthcare
+      n: 95
+    - company_name: Siemens
+      n: 84
+    - company_name: Canon Medical Systems
+      n: 38
+    - company_name: Philips
+      n: 38
+    - company_name: United Imaging
+      n: 38
+    - company_name: Aidoc Medical
+      n: 31
+    - company_name: Ischema View
+      n: 19
+    - company_name: Samsung Medison
+      n: 18
+    - company_name: Hyperfine
+      n: 13
+    - company_name: Clarius Mobile Health
+      n: 11
+    - company_name: Dia Imaging Analysis
+      n: 11
+    - company_name: Brainlab
+      n: 10
+    truncated: true
+- id: F01
+  category: first_clearance
+  question: When did Viz.ai receive its first AI clearance?
+  note: Answer must say 'first AI-enabled 510(k) in this dataset', not 'first FDA clearance'.
+  expects: answer
+  reference_sql: SELECT min(decision_date) AS first_clearance FROM fda_510k WHERE company_name = 'Viz.Ai'
+  expected_answer:
+    row_count: 1
+    columns:
+    - first_clearance
+    rows:
+    - first_clearance: '2018-04-20'
+    truncated: false
+- id: F02
+  category: first_clearance
+  question: Which companies received their first AI clearance in 2023?
+  note: null
+  expects: answer
+  reference_sql: SELECT company_name, min(decision_date) AS first_clearance FROM fda_510k GROUP BY 1 HAVING
+    year(min(decision_date)) = 2023 ORDER BY first_clearance, company_name
+  expected_answer:
+    row_count: 67
+    columns:
+    - company_name
+    - first_clearance
+    rows:
+    - company_name: Quanta Computer
+      first_clearance: '2023-01-27'
+    - company_name: Belun Technology
+      first_clearance: '2023-02-23'
+    - company_name: Brainomix
+      first_clearance: '2023-02-23'
+    - company_name: Alio
+      first_clearance: '2023-03-17'
+    - company_name: NeuroRPM
+      first_clearance: '2023-03-17'
+    - company_name: Medipixel
+      first_clearance: '2023-03-22'
+    - company_name: Nobel Biocare
+      first_clearance: '2023-03-28'
+    - company_name: Synapsica
+      first_clearance: '2023-03-28'
+    - company_name: Formus
+      first_clearance: '2023-03-31'
+    - company_name: BK Medical Holding
+      first_clearance: '2023-04-11'
+    - company_name: Shukun
+      first_clearance: '2023-04-13'
+    - company_name: Brainlab
+      first_clearance: '2023-04-19'
+    truncated: true
+- id: F03
+  category: first_clearance
+  question: How many companies entered the AI device market each year?
+  note: null
+  expects: answer
+  reference_sql: SELECT year(first_clearance) AS yr, count(*) AS n FROM (SELECT company_name, min(decision_date)
+    AS first_clearance FROM fda_510k GROUP BY 1) GROUP BY 1 ORDER BY yr
+  expected_answer:
+    row_count: 16
+    columns:
+    - yr
+    - n
+    rows:
+    - yr: 2010
+      n: 2
+    - yr: 2011
+      n: 2
+    - yr: 2012
+      n: 2
+    - yr: 2013
+      n: 2
+    - yr: 2014
+      n: 5
+    - yr: 2015
+      n: 6
+    - yr: 2016
+      n: 14
+    - yr: 2017
+      n: 17
+    - yr: 2018
+      n: 44
+    - yr: 2019
+      n: 41
+    - yr: 2020
+      n: 38
+    - yr: 2021
+      n: 45
+    truncated: true
+- id: F04
+  category: first_clearance
+  question: Which company was the earliest to get an AI clearance?
+  note: null
+  expects: answer
+  reference_sql: SELECT company_name, min(decision_date) AS first_clearance FROM fda_510k GROUP BY 1 ORDER
+    BY first_clearance LIMIT 3
+  expected_answer:
+    row_count: 3
+    columns:
+    - company_name
+    - first_clearance
+    rows:
+    - company_name: Medica
+      first_clearance: '2010-05-12'
+    - company_name: Pathwork
+      first_clearance: '2010-06-08'
+    - company_name: Cellavision
+      first_clearance: '2011-09-16'
+    truncated: false
+- id: T01
+  category: time_series
+  question: How many AI devices were cleared annually since 2015?
+  note: The plan's headline question.
+  expects: answer
+  reference_sql: SELECT decision_year, count(*) AS n FROM fda_510k WHERE decision_year >= 2015 GROUP BY
+    1 ORDER BY decision_year
+  expected_answer:
+    row_count: 11
+    columns:
+    - decision_year
+    - n
+    rows:
+    - decision_year: 2015
+      n: 6
+    - decision_year: 2016
+      n: 17
+    - decision_year: 2017
+      n: 23
+    - decision_year: 2018
+      n: 58
+    - decision_year: 2019
+      n: 80
+    - decision_year: 2020
+      n: 113
+    - decision_year: 2021
+      n: 122
+    - decision_year: 2022
+      n: 160
+    - decision_year: 2023
+      n: 219
+    - decision_year: 2024
+      n: 225
+    - decision_year: 2025
+      n: 328
+    truncated: false
+- id: T02
+  category: time_series
+  question: How long does it take from submission to decision, on average?
+  note: Uses both date columns; must not confuse date_received with decision_date.
+  expects: answer
+  reference_sql: SELECT round(avg(date_diff('day', date_received, decision_date)), 1) AS avg_days FROM
+    fda_510k
+  expected_answer:
+    row_count: 1
+    columns:
+    - avg_days
+    rows:
+    - avg_days: 151.8
+    truncated: false
+- id: T03
+  category: time_series
+  question: Has review time gotten longer over the years?
+  note: null
+  expects: answer
+  reference_sql: SELECT decision_year, round(median(date_diff('day', date_received, decision_date)), 1)
+    AS median_days, count(*) AS n FROM fda_510k GROUP BY 1 ORDER BY decision_year
+  expected_answer:
+    row_count: 16
+    columns:
+    - decision_year
+    - median_days
+    - n
+    rows:
+    - decision_year: 2010
+      median_days: 279
+      n: 2
+    - decision_year: 2011
+      median_days: 272.5
+      n: 2
+    - decision_year: 2012
+      median_days: 70.5
+      n: 4
+    - decision_year: 2013
+      median_days: 240
+      n: 3
+    - decision_year: 2014
+      median_days: 93
+      n: 5
+    - decision_year: 2015
+      median_days: 247.5
+      n: 6
+    - decision_year: 2016
+      median_days: 148
+      n: 17
+    - decision_year: 2017
+      median_days: 119
+      n: 23
+    - decision_year: 2018
+      median_days: 109
+      n: 58
+    - decision_year: 2019
+      median_days: 128
+      n: 80
+    - decision_year: 2020
+      median_days: 140
+      n: 113
+    - decision_year: 2021
+      median_days: 118
+      n: 122
+    truncated: true
+- id: T04
+  category: time_series
+  question: How many AI clearances were there in the last full year of data?
+  note: null
+  expects: answer
+  reference_sql: SELECT decision_year, count(*) AS n FROM fda_510k WHERE decision_year = (SELECT max(decision_year)
+    FROM fda_510k) GROUP BY 1
+  expected_answer:
+    row_count: 1
+    columns:
+    - decision_year
+    - n
+    rows:
+    - decision_year: 2025
+      n: 328
+    truncated: false
+- id: D01
+  category: device
+  question: Which product codes have the most AI clearances?
+  note: Rollups use product_code; device_classification_name is 34% null.
+  expects: answer
+  reference_sql: SELECT product_code, count(*) AS n FROM fda_510k GROUP BY 1 ORDER BY n DESC, product_code
+    LIMIT 10
+  expected_answer:
+    row_count: 10
+    columns:
+    - product_code
+    - n
+    rows:
+    - product_code: QIH
+      n: 258
+    - product_code: LLZ
+      n: 158
+    - product_code: IYN
+      n: 109
+    - product_code: JAK
+      n: 91
+    - product_code: LNH
+      n: 90
+    - product_code: QAS
+      n: 77
+    - product_code: QKB
+      n: 40
+    - product_code: QFM
+      n: 39
+    - product_code: MYN
+      n: 33
+    - product_code: MUJ
+      n: 30
+    truncated: false
+- id: D02
+  category: device
+  question: What medical specialties do AI devices fall under?
+  note: Must compare case-insensitively; 'pathology' is lowercase in the data.
+  expects: answer
+  reference_sql: SELECT lower(medical_specialty) AS specialty, count(*) AS n FROM fda_510k GROUP BY 1
+    ORDER BY n DESC, specialty
+  expected_answer:
+    row_count: 18
+    columns:
+    - specialty
+    - n
+    rows:
+    - specialty: radiology
+      n: 1071
+    - specialty: cardiovascular
+      n: 123
+    - specialty: neurology
+      n: 45
+    - specialty: gastroenterology & urology
+      n: 25
+    - specialty: orthopedic
+      n: 19
+    - specialty: anesthesiology
+      n: 17
+    - specialty: hematology
+      n: 16
+    - specialty: general & plastic surgery
+      n: 10
+    - specialty: ophthalmic
+      n: 10
+    - specialty: clinical chemistry
+      n: 7
+    - specialty: pathology
+      n: 6
+    - specialty: microbiology
+      n: 5
+    truncated: true
+- id: D03
+  category: device
+  question: How many AI clearances are in radiology?
+  note: null
+  expects: answer
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE lower(medical_specialty) = 'radiology'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 1071
+    truncated: false
+- id: D04
+  category: device
+  question: Which product code grew fastest between 2020 and 2025?
+  note: null
+  expects: answer
+  reference_sql: SELECT product_code, sum(CASE WHEN decision_year = 2020 THEN 1 ELSE 0 END) AS n_2020,
+    sum(CASE WHEN decision_year = 2025 THEN 1 ELSE 0 END) AS n_2025 FROM fda_510k GROUP BY 1 HAVING n_2020
+    > 0 ORDER BY (n_2025 - n_2020) DESC, product_code LIMIT 5
+  expected_answer:
+    row_count: 5
+    columns:
+    - product_code
+    - n_2020
+    - n_2025
+    rows:
+    - product_code: QIH
+      n_2020: 11
+      n_2025: 93
+    - product_code: IYN
+      n_2020: 7
+      n_2025: 29
+    - product_code: LNH
+      n_2020: 8
+      n_2025: 23
+    - product_code: DQK
+      n_2020: 2
+      n_2025: 6
+    - product_code: MUJ
+      n_2020: 3
+      n_2025: 6
+    truncated: false
+- id: D05
+  category: device
+  question: Find AI devices with 'triage' in the device name.
+  note: Device-name search means device_trade_name, not device_classification_name.
+  expects: answer
+  reference_sql: SELECT regnumber, company_name, device_trade_name FROM fda_510k WHERE lower(device_trade_name)
+    LIKE '%triage%' ORDER BY regnumber
+  expected_answer:
+    row_count: 30
+    columns:
+    - regnumber
+    - company_name
+    - device_trade_name
+    rows:
+    - regnumber: K183285
+      company_name: Curemetrix
+      device_trade_name: cmTriage
+    - regnumber: K193271
+      company_name: United Imaging
+      device_trade_name: uAI EasyTriage-Rib
+    - regnumber: K193300
+      company_name: Radlogics
+      device_trade_name: AIMI-Triage CXR PTX
+    - regnumber: K202992
+      company_name: Aidoc Medical
+      device_trade_name: BriefCase, RIB Fractures Triage (RibFx)
+    - regnumber: K211733
+      company_name: Lunit
+      device_trade_name: Lunit INSIGHT CXR Triage
+    - regnumber: K213941
+      company_name: Annalise Ai
+      device_trade_name: Annalise Enterprise CXR Triage Pneumothorax
+    - regnumber: K220080
+      company_name: Medcognetics
+      device_trade_name: CogNet QmTRIAGE
+    - regnumber: K220499
+      company_name: Ischema View
+      device_trade_name: Rapid PE Triage and Notification (PETN)
+    - regnumber: K222179
+      company_name: Annalise Ai
+      device_trade_name: Annalise Enterprise CXR Triage Trauma
+    - regnumber: K222268
+      company_name: Annalise Ai
+      device_trade_name: Annalise Enterprise CXR Triage Trauma
+    - regnumber: K223240
+      company_name: Annalise Ai
+      device_trade_name: Annalise Enterprise CTB Triage Trauma
+    - regnumber: K230074
+      company_name: Ischema View
+      device_trade_name: Rapid Aneurysm Triage and Notification
+    truncated: true
+- id: D06
+  category: device
+  question: How many Class III AI devices were cleared?
+  note: device_class is 34% null; the answer should say so.
+  expects: answer
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE device_class = '3'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 33
+    truncated: false
+- id: G01
+  category: geography
+  question: Which countries do AI device companies file from?
+  note: null
+  expects: answer
+  reference_sql: SELECT country, count(*) AS n FROM fda_510k GROUP BY 1 ORDER BY n DESC, country LIMIT
+    10
+  expected_answer:
+    row_count: 10
+    columns:
+    - country
+    - n
+    rows:
+    - country: US
+      n: 626
+    - country: IL
+      n: 110
+    - country: FR
+      n: 88
+    - country: CN
+      n: 72
+    - country: KR
+      n: 68
+    - country: JP
+      n: 55
+    - country: CA
+      n: 50
+    - country: GB
+      n: 45
+    - country: NL
+      n: 36
+    - country: DE
+      n: 28
+    truncated: false
+- id: G02
+  category: geography
+  question: How many AI clearances come from non-US companies?
+  note: null
+  expects: answer
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE country <> 'US'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 741
+    truncated: false
+- id: G03
+  category: geography
+  question: Which US state has the most AI device clearances?
+  note: null
+  expects: answer
+  reference_sql: SELECT state, count(*) AS n FROM fda_510k WHERE country = 'US' AND state IS NOT NULL
+    GROUP BY 1 ORDER BY n DESC, state LIMIT 5
+  expected_answer:
+    row_count: 5
+    columns:
+    - state
+    - n
+    rows:
+    - state: CA
+      n: 165
+    - state: WI
+      n: 68
+    - state: MA
+      n: 60
+    - state: PA
+      n: 41
+    - state: WA
+      n: 37
+    truncated: false
+- id: R01
+  category: refuse_out_of_range
+  question: How many AI devices were cleared in 2026?
+  note: Data ends 2025-12-30. Must answer 'outside the data range', never 0.
+  expects: refusal_or_clarification
+- id: R02
+  category: refuse_out_of_range
+  question: What is the AI clearance trend so far this year?
+  note: Current year is 2026 and has no rows. Must state the coverage boundary.
+  expects: refusal_or_clarification
+- id: R03
+  category: refuse_no_denominator
+  question: What percentage of all FDA clearances are AI-enabled?
+  note: No non-AI baseline in the dataset. Must refuse, not compute against an AI-only base.
+  expects: refusal_or_clarification
+- id: R04
+  category: refuse_no_denominator
+  question: What is the clearance rate for AI device submissions?
+  note: Only successful clearances present; no denied submissions exist to form a rate.
+  expects: refusal_or_clarification
+- id: R05
+  category: refuse_no_denominator
+  question: How many AI device submissions were rejected by the FDA?
+  note: No NSE decisions in the data. Absence is not zero.
+  expects: refusal_or_clarification
+- id: R06
+  category: refuse_not_in_data
+  question: How much funding did Aidoc raise before its first clearance?
+  note: Investment data is out of V1 scope. Must not guess.
+  expects: refusal_or_clarification
+- id: R07
+  category: refuse_not_in_data
+  question: Which AI devices were later recalled?
+  note: No recall data in this table.
+  expects: refusal_or_clarification
+- id: R08
+  category: refuse_not_in_data
+  question: How many PMA approvals do these companies have?
+  note: V1 is 510(k) only; PMA rows were excluded at load.
+  expects: refusal_or_clarification
+- id: A01
+  category: clarify
+  question: Show me Samsung's clearances.
+  note: Samsung / Samsung Medison is an unresolved split; should ask which entity.
+  expects: refusal_or_clarification
+- id: A02
+  category: clarify
+  question: How many devices has Canon cleared?
+  note: Canon vs Canon Medical Systems vs Canon Medical Informatics; parent rollup is undecided.
+  expects: refusal_or_clarification
+- id: A03
+  category: clarify
+  question: When did this company get approved?
+  note: No company named. Must ask rather than pick one.
+  expects: refusal_or_clarification
