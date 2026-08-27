@@ -22,3 +22,6 @@ venv/
 
 # Per-model eval outputs (regenerate with evals/run.py)
 evals/results*.json
+
+# Personal interview-prep notes, not part of the project
+self_notes/
