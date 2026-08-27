@@ -116,3 +116,63 @@ the loader, the SQL guard, and the scorer — runs offline.
 `tests/test_eval_runner.py` asserts that every reference query scores as a pass
 against its own frozen answer. If the scorer cannot recognise the known-correct
 SQL as correct, no score it produces means anything.
+
+
+---
+
+# `golden_v2.yaml` — 38 cases
+
+**Status: FROZEN 2026-08-27.** Supersedes v1. v1 is retained unmodified so the two
+sets stay comparable; `tests/test_evals.py` asserts both hashes and asserts that
+every v2 question is byte-identical to its v1 counterpart.
+
+## What changed
+
+Nine reference queries, each corrected against a **stated contract rule**, with
+the rule recorded on the case in `changed_from_v1`. No question was reworded — only
+reference SQL and expected actions changed. A correction without a recorded
+justification is indistinguishable from tuning the set to fit the model, so the
+test suite requires one on every changed case.
+
+Seven were corrected SQL (F04, G03, G01, T03, T04, D02, D05). Two were
+reclassified because there is no correct SQL:
+
+- **D04** — "which product code grew fastest" is ambiguous between absolute and
+  percentage change. v1 silently resolved it as absolute; v2 expects `clarify`.
+- **R02** — refusing and clarifying are both defensible, so v2 introduces a
+  `decline` expectation that accepts either.
+
+v2 also states the expected action per case rather than inferring it from the
+category, which is what makes `decline` expressible.
+
+## Result: 36/38
+
+| category | v1 | v2 |
+|---|---|---|
+| count | 5/5 | 5/5 |
+| company | 5/5 | 5/5 |
+| first_clearance | 3/4 | 4/4 |
+| device | 3/6 | 6/6 |
+| time_series | 2/4 | 3/4 |
+| geography | 1/3 | 2/3 |
+| refuse / clarify | 9+1/12 | 12/12 |
+
+The jump from 29 to 36 is **not** an improvement in the system — the system did not
+change between those runs. It is the correction of defects in v1's reference SQL.
+Both numbers are real; they measure different things, which is why v1 is kept.
+
+## The two remaining failures are honest ambiguity
+
+Neither is fixable by a contract rule, because both turn on what the question
+means, not on how to express it.
+
+- **T03** — "has review time gotten longer?" The reference uses the median; the
+  system used the mean. Both are defensible summaries of review time, and the
+  question does not say which. They agree on 2010 and diverge from 2012.
+- **G01** — "which countries do AI device *companies* file from?" The reference
+  counts clearances (US = 626); the system counted distinct companies (US = 222).
+  The question says "companies", so the system's reading is arguably the better
+  one and the reference is arguably wrong.
+
+These are recorded, not fixed. Fixing them means rewording the questions, which
+would make v2 incomparable to v1 — that belongs in a v3, if ever.

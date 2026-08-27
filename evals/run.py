@@ -29,7 +29,10 @@ from fda_agent.query import run as run_sql  # noqa: E402
 from fda_agent.sql_guard import SqlValidationError  # noqa: E402
 from fda_agent.text_to_sql import MissingCredentials, generate  # noqa: E402
 
-GOLDEN = Path(__file__).parent / "golden_v1.yaml"
+SETS = {
+    "v1": Path(__file__).parent / "golden_v1.yaml",
+    "v2": Path(__file__).parent / "golden_v2.yaml",
+}
 SAMPLE_IDS = ["C01", "M03", "F01", "T01", "D01", "R01", "R03", "A01"]
 
 
@@ -47,7 +50,13 @@ def score_answer(case: dict, result_rows) -> tuple[bool, str]:
     exp_head = _values(expected["rows"])
     got_head = _values(got[: len(exp_head)])
     if exp_head != got_head:
-        return False, f"values differ; first expected {exp_head[:1]}, got {got_head[:1]}"
+        # Report the first row that actually differs. Reporting row 0 regardless
+        # produced messages showing two identical tuples as a mismatch, which
+        # sent debugging in the wrong direction.
+        for i, (e, g) in enumerate(zip(exp_head, got_head)):
+            if e != g:
+                return False, f"row {i} differs: expected {e}, got {g}"
+        return False, f"expected {len(exp_head)} comparable rows, got {len(got_head)}"
     return True, "match"
 
 
@@ -61,20 +70,27 @@ def evaluate_case(case: dict, *, budget: Budget) -> dict:
 
     out.update(action=gen.decision.action, cached=gen.cached, cost_usd=gen.cost_usd)
 
-    if case["expects"] == "refusal_or_clarification":
-        wanted = "clarify" if case["category"] == "clarify" else "refuse"
+    expects = case["expects"]
+
+    # v1 states one bucket and infers the action from the category; v2 states the
+    # expected action directly, and allows `decline` where refuse and clarify are
+    # both defensible.
+    if expects == "refusal_or_clarification":
+        expects = "clarify" if case["category"] == "clarify" else "refuse"
+
+    if expects != "answer":
         if gen.decision.action == "sql":
             out.update(
                 status="fail",
                 detail="answered a question that has no correct answer",
                 generated_sql=gen.decision.sql,
             )
-        elif gen.decision.action == wanted:
+        elif expects == "decline" or gen.decision.action == expects:
             out.update(status="pass", detail=gen.decision.explanation)
         else:
             out.update(
                 status="partial",
-                detail=f"declined but as {gen.decision.action!r}, expected {wanted!r}",
+                detail=f"declined but as {gen.decision.action!r}, expected {expects!r}",
             )
         return out
 
@@ -99,12 +115,15 @@ def evaluate_case(case: dict, *, budget: Budget) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--set", default="v2", choices=sorted(SETS), help="which golden set")
     ap.add_argument("--full", action="store_true", help="run all cases (default: sample)")
     ap.add_argument("--ceiling", type=float, default=None, help="override spend ceiling")
     ap.add_argument("--out", type=Path, default=Path(__file__).parent / "results.json")
     args = ap.parse_args(argv)
 
-    doc = yaml.safe_load(GOLDEN.read_text())
+    golden = SETS[args.set]
+    doc = yaml.safe_load(golden.read_text())
+    print(f"golden set: {golden.name} (schema {doc['schema_version']})")
     if not doc.get("frozen"):
         print("refusing to run: golden set is not frozen", file=sys.stderr)
         return 2
@@ -156,6 +175,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args.out.write_text(json.dumps({
         "run_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "golden_set": golden.name,
         "mode": "full" if args.full else "sample",
         "golden_schema_version": doc["schema_version"],
         "passed": passed,

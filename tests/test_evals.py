@@ -8,11 +8,14 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+import pytest
 import yaml
 
 EVAL_DIR = Path(__file__).resolve().parents[1] / "evals"
 GOLDEN = EVAL_DIR / "golden_v1.yaml"
 DIGEST = EVAL_DIR / "golden_v1.sha256"
+
+SETS = [("golden_v1.yaml", "golden_v1.sha256"), ("golden_v2.yaml", "golden_v2.sha256")]
 
 
 def test_golden_set_is_unmodified():
@@ -51,3 +54,47 @@ def test_refusal_coverage_is_material():
     doc = yaml.safe_load(GOLDEN.read_text())
     refusals = [c for c in doc["cases"] if c["expects"] == "refusal_or_clarification"]
     assert len(refusals) == 11  # 8 refusals + 3 clarifications, of 38
+
+
+# --- v2 ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("yaml_name,digest_name", SETS)
+def test_every_frozen_set_is_unmodified(yaml_name, digest_name):
+    expected = (EVAL_DIR / digest_name).read_text().split()[0]
+    actual = hashlib.sha256((EVAL_DIR / yaml_name).read_bytes()).hexdigest()
+    assert actual == expected, f"{yaml_name} has been modified"
+
+
+def test_v1_is_never_altered_by_v2_work():
+    """v2 supersedes v1; it must not edit it. The sets stay comparable."""
+    v1 = yaml.safe_load((EVAL_DIR / "golden_v1.yaml").read_text())
+    v2 = yaml.safe_load((EVAL_DIR / "golden_v2.yaml").read_text())
+    assert v2["supersedes"] == "golden_v1.yaml"
+    assert v1["schema_version"] == "1.0.0"
+    assert {c["id"] for c in v1["cases"]} == {c["id"] for c in v2["cases"]}
+
+
+def test_v2_corrections_each_cite_a_reason():
+    """A changed reference without a recorded justification is indistinguishable
+    from tuning the set to fit the model."""
+    v2 = yaml.safe_load((EVAL_DIR / "golden_v2.yaml").read_text())
+    changed = [c for c in v2["cases"] if c.get("changed_from_v1")]
+    assert len(changed) == 9
+    for case in changed:
+        assert len(case["changed_from_v1"]) > 20, case["id"]
+
+
+def test_v2_questions_are_identical_to_v1():
+    """Only reference SQL and expectations changed. Rewording questions to suit
+    the system would make the two sets incomparable."""
+    v1 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_v1.yaml").read_text())["cases"]}
+    v2 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_v2.yaml").read_text())["cases"]}
+    for cid, case in v2.items():
+        assert case["question"] == v1[cid]["question"], cid
+
+
+def test_v2_still_has_material_decline_coverage():
+    v2 = yaml.safe_load((EVAL_DIR / "golden_v2.yaml").read_text())
+    declines = [c for c in v2["cases"] if c["expects"] in ("refuse", "clarify", "decline")]
+    assert len(declines) == 12
