@@ -76,16 +76,14 @@ Phase 0 blocker. Before any ingestion:
   URL, in this file. Do not assume "government data, therefore free".
 - Confirm rate limits and whether an API key is needed.
 
-### PitchBook — BLOCKED, do not ingest
+### PitchBook — CLEARED by owner (2026-08-27)
 
-PitchBook is a paid, licensed commercial product. Its subscriber agreement governs
-redistribution and derived use, and a public repo built on extracts is exactly what
-those terms target. Until there is a written, citable basis for use, treat this as
-ruled out.
+Shreyans holds a PitchBook licence and has confirmed the data may be used for this
+project. Decision made deliberately and on the record; do not reopen it.
 
-`docs/PLAN.md` names PitchBook throughout. Read those sections as "the investment
-data source", with the actual source unresolved. Phase 2 needs a substitute with
-clean terms, decided and recorded here before any code is written against it.
+Standing constraint, unchanged and independent of licensing: raw PitchBook extracts
+live in `data/` and are never committed — same rule that applies to every source
+here.
 
 ### Public web / filings — partially clear
 
