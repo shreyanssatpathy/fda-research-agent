@@ -88,9 +88,16 @@ def _default_client():
             "Only SQL generation needs this. The loader, the SQL guard and the "
             "eval scoring all run offline."
         )
+    import os
+
     import anthropic
 
-    return anthropic.Anthropic()
+    # Identity-linked API keys must name the workspace the request acts in. The
+    # SDK only reads ANTHROPIC_WORKSPACE_ID on the workload-identity path, so for
+    # a plain API key the header has to be sent explicitly.
+    workspace = os.environ.get("ANTHROPIC_WORKSPACE_ID")
+    headers = {"anthropic-workspace-id": workspace} if workspace else None
+    return anthropic.Anthropic(default_headers=headers)
 
 
 def _request_payload(question: str, system: str, effort: str) -> dict:

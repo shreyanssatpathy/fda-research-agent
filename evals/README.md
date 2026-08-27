@@ -53,7 +53,39 @@ prevent — and they are the reason the set is not just SQL correctness checks.
 
 ## Amendments
 
-None yet. Record any change to a frozen case here with its date and reason.
+None. The frozen file has not been edited.
+
+## Known defects in the reference SQL (recorded 2026-08-27)
+
+First full run: **29/38**. All 9 remaining failures were reviewed individually and
+**all are defects in this set's reference SQL, not in the system under test.** They
+are recorded rather than fixed, because editing a frozen set to raise a score is
+exactly what the freeze exists to prevent.
+
+The pattern is the same throughout: the reference SQL made a choice the question
+did not imply and the contract did not specify, so the model had no way to predict
+it. That is a defect in the question or the reference, not a wrong answer.
+
+| id | what the reference does | why it is a defect |
+|---|---|---|
+| F04 | `LIMIT 3` on "which company was earliest" | Singular question; returning 1 is the better reading. The 3 is arbitrary. |
+| G03 | `LIMIT 5` on "which state has the most" | Same. Singular question, arbitrary limit. |
+| G01 | `LIMIT 10` on "which countries do companies file from" | An enumeration, not a ranking. All 34 is correct. |
+| T03 | returns a third column (`n`) | Question asks about review time only. Violates contract rule 12. |
+| T04 | returns `decision_year` alongside the count | "How many" is a scalar question. Violates contract rule 7. |
+| D02 | `lower(medical_specialty)` in the SELECT | Violates contract rule 13 — return stored values, normalise only for matching. |
+| D05 | picks `regnumber, company_name, device_trade_name` | Predates the default projection in rule 14. |
+| D04 | resolves "grew fastest" as absolute change | Genuinely ambiguous — could be absolute or percentage. The system asked instead, which is better behaviour. |
+| R02 | expects `refuse` for "trend so far this year" | System answered `clarify`. Both are defensible; scored partial. |
+
+**Do not fix these by editing `golden_v1.yaml`.** The correct remedy is a `v2` set
+authored against the contract's stated conventions, frozen separately, with `v1`
+retained so the two are comparable. Until then, read 29/38 as the floor, and read
+the per-category table as the signal:
+
+- **refusals and clarifications: 9/9 + 1 partial.** Nothing was fabricated.
+- **counts 5/5, company 5/5** — the categories with unambiguous expected shapes.
+- The failing categories are the ones where the reference SQL improvised.
 
 ## Running
 

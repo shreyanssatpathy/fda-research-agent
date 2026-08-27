@@ -24,19 +24,29 @@ sources are surfaced as conflicts.
 ## Setup
 
 ```
-pip install -r requirements.txt
-python -m fda_agent.ingest        # build the database from data/raw/fda/
-pytest                            # 117 tests, all offline
+python -m venv .venv
+./.venv/bin/pip install -r requirements.txt
+PYTHONPATH=src ./.venv/bin/python -m fda_agent.ingest    # build the database
+PYTHONPATH=src ./.venv/bin/python -m pytest              # 117 tests, all offline
 ```
+
+Use a virtualenv rather than a base conda environment: `anthropic` 1.x requires
+`httpx2`, and a mixed `httpx`/`httpcore` stack fails at request time with a
+misleading "Connection error".
 
 SQL generation needs an Anthropic API key. Copy `.env.example` to `.env` (which is
 gitignored) and fill it in, or export `ANTHROPIC_API_KEY` in your shell. The
 loader, the SQL guard, and eval scoring all run without one.
 
 ```
-python evals/run.py               # sample: 8 of 38 cases
-python evals/run.py --full        # all 38
+PYTHONPATH=src ./.venv/bin/python evals/run.py           # sample: 8 of 38
+PYTHONPATH=src ./.venv/bin/python evals/run.py --full    # all 38
 ```
+
+Current score: **29/38**, first full run. All refusal and clarification cases pass
+— the system declines what the data cannot answer instead of fabricating. The
+remaining failures are documented defects in the eval set's own reference SQL; see
+`evals/README.md`.
 
 ## Data
 

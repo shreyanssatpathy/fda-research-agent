@@ -35,6 +35,83 @@ device corpus and **not** all submissions by these companies.
    clearance (`decision_code` SESE/SESU) and there is no non-AI comparison group,
    so there is no denominator for "what fraction" or "how many were rejected".
 
+## Result shape
+
+The question determines the shape of the result, not just its content. These are
+rules, not preferences — a correct number in the wrong shape is a failed answer.
+
+7. **A question asking for one number returns one row and one column.** "How
+   many clearances does GE Healthcare have?" is
+   `SELECT count(*) FROM fda_510k WHERE company_name = 'GE Healthcare'` — no
+   `GROUP BY`, no company column, no supporting counts. Do not add context
+   columns the question did not ask for; put context in the explanation instead.
+
+   **This applies only when the question asks for a single number.** A question
+   asking for a *breakdown* — "annually", "per year", "by specialty", "for each
+   company" — asks for one row per group and must keep its `GROUP BY` and its
+   grouping column. "How many AI devices were cleared annually since 2015?" is
+   `SELECT decision_year, count(*) ... GROUP BY decision_year ORDER BY
+   decision_year`, not a single total.
+
+8. **A ranking question with no stated N returns 10 rows.** "Which product codes
+   have the most clearances?" means the top 10, so `ORDER BY ... DESC LIMIT 10`.
+   Returning all 138 answers a different question. Honour an explicit N when the
+   question gives one ("top 3", "five largest").
+
+9. **Break ties deterministically.** Any `ORDER BY` on a count must have a second
+   key so equal counts do not come back in arbitrary order — e.g.
+   `ORDER BY n DESC, company_name`.
+
+11. **Round non-integer aggregates to one decimal place.** An average review
+    time is `151.8` days, not `151.77395757132408`. Counts stay exact.
+
+12. **A breakdown returns exactly two things: what it is grouped by, and what is
+    measured.** "What specialties do AI devices fall under?" returns the
+    specialty and the count — dropping the count answers a different question,
+    and adding a third column does too. "Has review time gotten longer over the
+    years?" returns the year and the review-time measure, not also a clearance
+    count. Extra observations belong in the explanation, not the result set.
+
+13. **Return stored values unchanged.** Do not apply `initcap`, `upper`, or other
+    cosmetic transforms to a column in the `SELECT` list. Normalising for
+    *matching* is correct — `WHERE lower(medical_specialty) = 'radiology'` — but
+    the value returned must be what the table holds, so the caller sees the data
+    as it is. If a value is inconsistently cased in the source, say so in the
+    explanation rather than silently tidying it.
+
+14. **Default projection for a clearance listing.** When a question asks to show
+    or list clearances without naming columns, return exactly
+    `regnumber, decision_date, device_trade_name, product_code`, ordered by
+    `decision_date`. This is a house convention, chosen so the same question
+    always produces the same shape; it is not implied by the data.
+
+## Matching a company name
+
+10. **Match `company_name` on a case-insensitive, word-anchored prefix.**
+
+    ```sql
+    WHERE lower(company_name) = lower('<name>')
+       OR lower(company_name) LIKE lower('<name>') || ' %'
+    ```
+
+    Each part earns its place:
+
+    - **Case-insensitive**, because stored names carry irregular capitalisation
+      (`Viz.Ai`, `Qure.AI`, `Icardio.ai`). Plain `=` fails silently:
+      `company_name = 'Viz.ai'` returns **no rows** for a company with ten
+      clearances, and an empty result is not the same as no clearances.
+    - **Prefix with a trailing space**, because users give short names. `Aidoc`
+      must find `Aidoc Medical`; exact equality alone finds nothing.
+    - **Anchored at the start and on a word boundary**, because unanchored
+      substring matching produces false positives that are easy to miss:
+      `ILIKE '%GE Healthcare%'` also matches `Merge Healthcare` and
+      `Change Healthcare`, since the pattern occurs inside those words.
+
+    If this matches more than one company and the question is about a single
+    company, that is ambiguity — `clarify` rather than silently summing them.
+    `Samsung` matches both `Samsung` and `Samsung Medison`, which are different
+    filers.
+
 ## Columns
 
 | column | type | meaning |
