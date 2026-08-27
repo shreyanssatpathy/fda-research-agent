@@ -52,7 +52,9 @@ until the data actually covers the wider claim.
 
 ### LLM
 - Every LLM call is content-hash cached. No uncached call inside a row loop.
-- Hard spend ceiling enforced in code (`src/llm/budget.py`), not by prompt.
+- Hard spend ceiling enforced in code (`src/fda_agent/llm/budget.py`), not by
+  prompt. *(Amended 2026-08-27: path was `src/llm/budget.py`; the package lives
+  under `src/fda_agent/`. Rule unchanged, location corrected.)*
 - Every script defaults to sample mode; full runs require an explicit flag.
 - Every generated artifact carries `prompt_version`, `model_id`, `schema_version`.
 

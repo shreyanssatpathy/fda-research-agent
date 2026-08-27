@@ -17,6 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import yaml  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).parent))
+
 from fda_agent.db import connect  # noqa: E402
 
 # (id, category, question, reference_sql, note)
@@ -140,17 +142,8 @@ CASES = [
 ]
 
 
-def _scalar(v):
-    """Render a cell for the frozen file: dates as dates, whole numbers as ints."""
-    if v is None or (isinstance(v, float) and v != v):
-        return None
-    if hasattr(v, "date") and not isinstance(v, str):
-        return str(v.date()) if hasattr(v, "hour") else str(v)
-    if isinstance(v, float) and v.is_integer():
-        return int(v)
-    if hasattr(v, "item"):
-        v = v.item()
-    return v if isinstance(v, (int, float, bool)) else str(v)
+# Kept in sync with the scorer by sharing one implementation; see normalize.py.
+from normalize import normalize_cell as _scalar  # noqa: E402
 
 
 def main() -> int:

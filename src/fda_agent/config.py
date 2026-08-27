@@ -17,6 +17,10 @@ V1_PATHWAY = "510(k)"
 # Tables the text-to-SQL layer is permitted to read.
 TABLE_ALLOWLIST = frozenset({"fda_510k"})
 
+# LLM. Opus 5 is the default; change deliberately, and update PRICING in
+# llm/budget.py in the same edit so spend is never undercounted.
+MODEL_ID = "claude-opus-5"
+
 # Enforced on every generated query.
 MAX_ROWS = 1000
 STATEMENT_TIMEOUT_S = 30

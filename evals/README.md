@@ -54,3 +54,33 @@ prevent — and they are the reason the set is not just SQL correctness checks.
 ## Amendments
 
 None yet. Record any change to a frozen case here with its date and reason.
+
+## Running
+
+```
+python evals/run.py            # sample mode: 8 cases
+python evals/run.py --full     # all 38
+```
+
+Sample mode is the default per CLAUDE.md. The 8 sampled cases deliberately span
+both answerable and unanswerable questions — a sample of only answerable ones
+would hide exactly the failures that matter.
+
+Generation requires an Anthropic API key (`ANTHROPIC_API_KEY`). Everything else —
+the loader, the SQL guard, and the scorer — runs offline.
+
+### How scoring works
+
+- **Answerable case**: the model must choose `sql`; the SQL must survive the
+  guard, execute, and produce the same row count and the same values in the same
+  order. Column *names* are ignored (`n` vs `total` is style).
+- **Unanswerable case**: the model must choose `refuse` (or `clarify` for the
+  ambiguous ones). Producing SQL scores as a **failure**, not partial credit —
+  answering an unanswerable question confidently is the failure mode this project
+  exists to prevent.
+- Declining an answerable question is also a failure. Refusing everything scores
+  no better than answering everything.
+
+`tests/test_eval_runner.py` asserts that every reference query scores as a pass
+against its own frozen answer. If the scorer cannot recognise the known-correct
+SQL as correct, no score it produces means anything.
