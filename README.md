@@ -48,6 +48,21 @@ Current score: **29/38**, first full run. All refusal and clarification cases pa
 remaining failures are documented defects in the eval set's own reference SQL; see
 `evals/README.md`.
 
+## Interface
+
+```
+PYTHONPATH=src ./.venv/bin/python -m streamlit run app.py --server.address 127.0.0.1
+```
+
+The interface renders **refusals, clarifications, empty results, and blocked
+queries as four visibly different things**. That distinction is the point: a
+refusal and a zero-row table look identical if both are just an empty dataframe,
+and conflating them is how a user reads "no clearances in 2026" off a system that
+simply has no 2026 data.
+
+Every answer carries its generated SQL, the safety layer's rewritten SQL, and the
+model, prompt version, and contract hash that produced it.
+
 ## Data
 
 No source data is committed to this repository. `data/` is gitignored.
