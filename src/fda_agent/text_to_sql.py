@@ -67,6 +67,10 @@ def _has_credentials() -> bool:
     import os
     from pathlib import Path as _Path
 
+    from fda_agent.env import load_env
+
+    load_env()  # a .env in the repo root, if there is one; never overwrites exports
+
     if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"):
         return True
     if (_Path.home() / ".config" / "anthropic").exists():

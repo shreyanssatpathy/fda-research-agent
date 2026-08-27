@@ -177,3 +177,38 @@ def test_refusal_decision_carries_no_sql(tmp_path):
                  budget=Budget(ledger_path=tmp_path / "l.json"))
     assert g.decision.action == "refuse"
     assert g.decision.sql is None
+
+
+# --- .env loading ------------------------------------------------------------------
+
+
+def test_env_file_sets_unset_variables(tmp_path, monkeypatch):
+    from fda_agent.env import load_env
+
+    monkeypatch.delenv("SOME_TEST_KEY", raising=False)
+    p = tmp_path / ".env"
+    p.write_text('# comment\n\nSOME_TEST_KEY="value-1"\nexport OTHER_KEY=value-2\n')
+    assert set(load_env(p)) == {"SOME_TEST_KEY", "OTHER_KEY"}
+    import os
+
+    assert os.environ["SOME_TEST_KEY"] == "value-1"
+    assert os.environ["OTHER_KEY"] == "value-2"
+
+
+def test_env_file_does_not_override_an_explicit_export(tmp_path, monkeypatch):
+    """A shell export must win over a stale file, or debugging becomes guesswork."""
+    from fda_agent.env import load_env
+
+    monkeypatch.setenv("SOME_TEST_KEY", "from-shell")
+    p = tmp_path / ".env"
+    p.write_text("SOME_TEST_KEY=from-file\n")
+    assert load_env(p) == []
+    import os
+
+    assert os.environ["SOME_TEST_KEY"] == "from-shell"
+
+
+def test_missing_env_file_is_not_an_error(tmp_path):
+    from fda_agent.env import load_env
+
+    assert load_env(tmp_path / "nope.env") == []

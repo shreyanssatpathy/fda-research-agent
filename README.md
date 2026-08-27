@@ -21,6 +21,23 @@ Phase 0. Plan recorded, source terms not yet verified, no code written.
 Every fact carries its source. Missing data is reported as missing. Conflicting
 sources are surfaced as conflicts.
 
+## Setup
+
+```
+pip install -r requirements.txt
+python -m fda_agent.ingest        # build the database from data/raw/fda/
+pytest                            # 117 tests, all offline
+```
+
+SQL generation needs an Anthropic API key. Copy `.env.example` to `.env` (which is
+gitignored) and fill it in, or export `ANTHROPIC_API_KEY` in your shell. The
+loader, the SQL guard, and eval scoring all run without one.
+
+```
+python evals/run.py               # sample: 8 of 38 cases
+python evals/run.py --full        # all 38
+```
+
 ## Data
 
 No source data is committed to this repository. `data/` is gitignored.
