@@ -1,6 +1,7 @@
 schema_version: 1.0.0
-frozen: false
-note: Draft awaiting owner review. Once frozen, never regenerate or edit to improve a score (CLAUDE.md).
+frozen: true
+frozen_on: '2026-08-27'
+note: FROZEN by owner 2026-08-27. Never regenerate or edit to improve a score (CLAUDE.md).
   Expected answers were executed against the database, not authored by hand.
 cases:
 - id: C01

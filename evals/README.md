@@ -2,7 +2,11 @@
 
 ## `golden_v1.yaml` — 38 cases
 
-**Status: draft, `frozen: false`. Awaiting owner review.**
+**Status: FROZEN 2026-08-27 (`frozen: true`).**
+
+Integrity is pinned in `golden_v1.sha256` and asserted by `tests/test_evals.py`.
+Any edit to the file fails the suite — which is the point. Changing a frozen case
+requires updating the hash deliberately and recording the ruling below.
 
 The reference SQL is hand-written and is the thing under review. Every expected
 answer was produced by executing that SQL against the built database, so no number
@@ -28,7 +32,7 @@ explicit, dated ruling in this README.
 | `refuse_not_in_data` | 3 | funding, recalls, PMA — out of V1 scope |
 | `clarify` | 3 | ambiguous company references |
 
-**Nine of the 38 cases must be refused and three must ask for clarification.** A
+**Eight of the 38 cases must be refused and three must ask for clarification.** A
 system that answers all 38 has failed, not passed. These are the cases that catch
 confident fabrication, which is the failure mode the evidence layer exists to
 prevent — and they are the reason the set is not just SQL correctness checks.
@@ -45,3 +49,8 @@ prevent — and they are the reason the set is not just SQL correctness checks.
 - **A01/A02** are ambiguous *because of known data defects* — Samsung and Canon are
   unresolved splits. If those get ruled on, these two cases change meaning and
   should be revisited deliberately.
+
+
+## Amendments
+
+None yet. Record any change to a frozen case here with its date and reason.
