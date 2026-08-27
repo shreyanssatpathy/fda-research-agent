@@ -18,6 +18,23 @@ FDA text-to-SQL -> reliable FDA copilot -> investment data -> entity resolution
 -> cross-database research -> web research -> full agent
 ```
 
+## V1 scope (decided 2026-08-27)
+
+V1 runs on **AI-enabled medical device 510(k) clearances, 2010 onwards** — a
+pre-filtered extract supplied by the owner, not the full FDA corpus.
+
+Two consequences that must be enforced in the semantic layer, not left to the LLM:
+
+- "First approval" means **first AI-enabled 510(k) clearance in this dataset**.
+  It is not the company's first FDA clearance — earlier non-AI clearances exist
+  and are absent here. Every answer must say the narrower thing.
+- **Share-of-total questions have no denominator** and must be refused, not
+  computed. There is no non-AI baseline in the data.
+
+Expansion order once V1 is reliable: other submission types (PMA, De Novo), then
+non-AI devices, then PitchBook. Widening the data does not retire the rules above
+until the data actually covers the wider claim.
+
 ## Non-negotiables
 
 ### Evidence
