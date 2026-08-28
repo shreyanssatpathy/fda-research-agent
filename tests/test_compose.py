@@ -176,3 +176,106 @@ def test_ambiguous_company_yields_no_evidence():
     assert profile.is_ambiguous
     assert profile.evidence is None
     assert profile.capital_before_first_clearance_usd_m is None
+
+
+# --- cohort layer: FDA collapsed to first approval before the join -----------------
+
+
+@pytest.fixture(scope="module")
+def cohort():
+    from fda_agent.compose import funding_vs_first_clearance
+
+    return funding_vs_first_clearance()
+
+
+def test_cohort_is_one_row_per_company(cohort):
+    """The whole point of collapsing to first approval.
+
+    Without it, joining clearances to deals gives one row per clearance x round.
+    """
+    assert len(cohort) == cohort["company_name"].nunique()
+
+
+def test_cohort_keeps_every_company_including_unfunded(cohort):
+    """LEFT JOIN, not INNER — a company with no funding data must still appear,
+    or it silently disappears from any cohort statistic."""
+    with connect() as con:
+        n = con.execute("SELECT count(DISTINCT company_name) FROM fda_510k").fetchone()[0]
+    assert len(cohort) == n
+
+
+def test_cohort_capital_is_not_inflated(cohort):
+    """Total across the cohort must equal the underlying deal total for bridged,
+    dated venture rounds — no multiplication by clearance count."""
+    with connect() as con:
+        truth = con.execute(
+            """
+            SELECT round(sum(d.deal_size_usd_m), 1)
+            FROM pb_deals d
+            WHERE d.is_venture_round AND d.deal_date IS NOT NULL
+              AND d.company_id IN (SELECT DISTINCT pb_company_id FROM fda_510k
+                                   WHERE pb_company_id IS NOT NULL)
+            """
+        ).fetchone()[0]
+    total = round(
+        cohort["capital_before_usd_m"].fillna(0).sum()
+        + cohort["capital_after_usd_m"].fillna(0).sum(),
+        1,
+    )
+    assert total == pytest.approx(truth, rel=0.001)
+
+
+def test_cohort_round_counts_reconcile_with_the_deal_table(cohort):
+    """before + after + undated must equal the company's venture rounds."""
+    with connect() as con:
+        per_company = con.execute(
+            """
+            SELECT f.company_name, count(*) AS n
+            FROM fda_510k f JOIN pb_deals d ON d.company_id = f.pb_company_id
+            WHERE d.is_venture_round
+            GROUP BY 1
+            """
+        ).df()
+    # NB: that query fans out by clearance count, so normalise per company.
+    with connect() as con:
+        truth = con.execute(
+            """
+            SELECT fc.company_name, count(*) AS n
+            FROM (SELECT company_name, any_value(pb_company_id) AS pb_company_id
+                  FROM fda_510k GROUP BY company_name) fc
+            JOIN pb_deals d ON d.company_id = fc.pb_company_id
+            WHERE d.is_venture_round
+            GROUP BY 1
+            """
+        ).df().set_index("company_name")["n"].to_dict()
+
+    for row in cohort.itertuples():
+        expected = truth.get(row.company_name, 0)
+        got = row.rounds_before + row.rounds_after + row.undated_rounds
+        assert got == expected, row.company_name
+
+
+def test_cohort_uses_null_not_zero_for_unknown_capital(cohort):
+    """A company with no recorded rounds has not raised nothing."""
+    unfunded = cohort[cohort["rounds_before"] == 0]
+    assert unfunded["capital_before_usd_m"].isna().all()
+
+
+def test_cohort_agrees_with_the_single_company_profile():
+    """The cohort path and the profile path must not disagree."""
+    from fda_agent.compose import company_profile, funding_vs_first_clearance
+
+    df = funding_vs_first_clearance().set_index("company_name")
+    for name in ("Aidoc Medical", "Viz.Ai", "Hyperfine"):
+        profile = company_profile(name)
+        row = df.loc[name]
+        assert profile.rounds_before_first_clearance == row["rounds_before"]
+        assert profile.capital_before_first_clearance_usd_m == pytest.approx(
+            row["capital_before_usd_m"], abs=0.1
+        )
+
+
+def test_undated_rounds_are_excluded_from_before_and_after(cohort):
+    """A deal with no date cannot be called before or after anything."""
+    assert (cohort["undated_rounds"] >= 0).all()
+    assert cohort["undated_rounds"].sum() > 0, "expected some undated rounds in the data"

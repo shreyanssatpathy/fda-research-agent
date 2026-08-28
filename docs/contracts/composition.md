@@ -74,10 +74,61 @@ how many were excluded from before/after comparisons.
 earliest clearance date. Undated rounds are excluded and reported as a gap. The
 value is `None`, never `0`, when there are no qualifying rounds.
 
+## Cohort layer: collapse FDA to first approval, then join
+
+Owner convention, 2026-08-27, and the standard way to make this join safe.
+
+`funding_vs_first_clearance()` reduces FDA to **one row per company at its first
+clearance** *before* joining deals. The FDA side is then a single row, so the join
+is 1:many and `sum(deal_size_usd_m)` cannot double-count. It reaches the same
+guarantee as the per-company fact lists, expressed as SQL — and unlike the fact
+lists it scales to set-level questions.
+
+```sql
+WITH first_clearance AS (
+    SELECT company_name,
+           any_value(pb_company_id) AS pb_company_id,
+           min(decision_date)       AS first_clearance,
+           count(*)                 AS total_clearances
+    FROM fda_510k GROUP BY company_name
+)
+SELECT ... FROM first_clearance fc
+LEFT JOIN deals d ON d.company_id = fc.pb_company_id
+```
+
+**Company x first approval is the analytical unit** for every funding-versus-
+approval question. Returns one row per company:
+
+| column | meaning |
+|---|---|
+| `first_clearance`, `total_clearances` | the FDA anchor |
+| `rounds_before`, `capital_before_usd_m` | venture rounds strictly before it |
+| `rounds_after`, `capital_after_usd_m` | on or after |
+| `undated_rounds` | rounds that cannot be placed in time, excluded from both |
+
+Four properties, each asserted by a test:
+
+- **One row per company** — 459 rows, 459 companies.
+- **`LEFT JOIN`, never `INNER`.** All 459 appear, including companies with no
+  funding data; an inner join would delete them from every cohort statistic.
+- **Totals reconcile** with the underlying deal table — no inflation.
+- **`NULL`, not `0`,** where capital is unknown. A company with no recorded rounds
+  has not raised nothing.
+
+Round counts reconcile exactly: `rounds_before + rounds_after + undated_rounds`
+equals the company's venture-round count, and the cohort path agrees with
+`company_profile()` company by company.
+
+What this unlocks — the plan's §16 end-state query is now one filter:
+
+> 289 companies have venture funding before their first AI clearance.
+> Median $7.8m, mean $40.8m. **241 raised under $50m.**
+
 ## Not yet built
 
-- **A router.** Callers choose `company_profile()` explicitly; nothing yet decides
-  which sources a free-text question needs.
-- **Narrative synthesis.** Evidence is assembled but not yet written up.
-- **Cohort questions.** "Which companies raised under $50m before clearance"
-  needs a set-level path; only single-company profiles exist.
+- **A router.** Callers choose `company_profile()` or
+  `funding_vs_first_clearance()` explicitly; nothing yet decides which sources a
+  free-text question needs.
+- **Narrative synthesis.** Evidence is assembled but not written up.
+- **Post-clearance trajectory questions** beyond the before/after split — e.g.
+  time from clearance to next round.

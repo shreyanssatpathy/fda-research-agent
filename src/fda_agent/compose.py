@@ -30,6 +30,26 @@ from fda_agent.evidence import Evidence, Fact, Gap
 VENTURE_FILTER = "is_venture_round"
 
 
+# The analytical unit for funding-versus-approval questions: one row per company,
+# anchored on its first clearance.
+#
+# Collapsing FDA to first approval before joining deals is the standard way to
+# make this join safe — the FDA side becomes one row, so the join is 1:many and
+# SUM(deal_size) cannot double-count. It is the same guarantee the per-company
+# fact lists give, expressed as SQL, and it is what makes cohort questions
+# ("companies that raised under $50m before clearance") answerable at all.
+FIRST_CLEARANCE_CTE = """
+first_clearance AS (
+    SELECT company_name,
+           any_value(pb_company_id)  AS pb_company_id,
+           min(decision_date)        AS first_clearance,
+           count(*)                  AS total_clearances
+    FROM fda_510k
+    GROUP BY company_name
+)
+"""
+
+
 @dataclass
 class Profile:
     """A company research profile assembled from every available source."""
@@ -181,3 +201,47 @@ def company_profile(name: str, db_path: Path = DB_PATH) -> Profile:
         rounds_before_first_clearance=len(before),
         first_clearance=first_clearance,
     )
+
+
+def funding_vs_first_clearance(db_path: Path = DB_PATH):
+    """One row per company: funding raised before and after its first clearance.
+
+    The cohort-level counterpart to `company_profile`. FDA is collapsed to first
+    approval *before* the join, so each company contributes exactly one FDA row
+    and deal sizes cannot be multiplied by clearance count.
+
+    Undated deals are excluded from both sides and counted separately — a deal
+    that cannot be placed in time cannot be called "before" or "after".
+
+    Columns whose value is unknown stay NULL rather than becoming 0: a company
+    with no recorded rounds has not raised nothing.
+    """
+    sql = f"""
+    WITH {FIRST_CLEARANCE_CTE},
+    deals AS (
+        SELECT company_id, deal_date, deal_size_usd_m
+        FROM pb_deals
+        WHERE is_venture_round AND deal_date IS NOT NULL
+    ),
+    undated AS (
+        SELECT company_id, count(*) AS undated_rounds
+        FROM pb_deals WHERE is_venture_round AND deal_date IS NULL
+        GROUP BY company_id
+    )
+    SELECT fc.company_name,
+           fc.pb_company_id,
+           fc.first_clearance,
+           fc.total_clearances,
+           count(d.deal_date) FILTER (WHERE d.deal_date <  fc.first_clearance) AS rounds_before,
+           round(sum(d.deal_size_usd_m) FILTER (WHERE d.deal_date <  fc.first_clearance), 1) AS capital_before_usd_m,
+           count(d.deal_date) FILTER (WHERE d.deal_date >= fc.first_clearance) AS rounds_after,
+           round(sum(d.deal_size_usd_m) FILTER (WHERE d.deal_date >= fc.first_clearance), 1) AS capital_after_usd_m,
+           coalesce(any_value(u.undated_rounds), 0) AS undated_rounds
+    FROM first_clearance fc
+    LEFT JOIN deals d ON d.company_id = fc.pb_company_id
+    LEFT JOIN undated u ON u.company_id = fc.pb_company_id
+    GROUP BY 1, 2, 3, 4
+    ORDER BY fc.company_name
+    """
+    with connect(db_path) as con:
+        return con.execute(sql).df()
