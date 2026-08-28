@@ -25,6 +25,7 @@ import yaml  # noqa: E402
 from normalize import normalize_row  # noqa: E402
 
 from fda_agent.llm.budget import Budget, BudgetExceeded  # noqa: E402
+from fda_agent.prompts import get_source  # noqa: E402
 from fda_agent.query import run as run_sql  # noqa: E402
 from fda_agent.sql_guard import SqlValidationError  # noqa: E402
 from fda_agent.text_to_sql import MissingCredentials, generate  # noqa: E402
@@ -34,8 +35,10 @@ SETS = {
     "v2": Path(__file__).parent / "golden_v2.yaml",
     "v3": Path(__file__).parent / "golden_v3.yaml",
     "v4": Path(__file__).parent / "golden_v4.yaml",
+    "pitchbook": Path(__file__).parent / "golden_pitchbook.yaml",
 }
 SAMPLE_IDS = ["C01", "M03", "F01", "T01", "D01", "R01", "R03", "A01"]
+PB_SAMPLE_IDS = ["P01", "P05", "P06", "P12", "P16", "P21", "P22"]
 
 
 def _values(rows: list[dict]) -> list[tuple]:
@@ -62,10 +65,10 @@ def score_answer(case: dict, result_rows) -> tuple[bool, str]:
     return True, "match"
 
 
-def evaluate_case(case: dict, *, budget: Budget) -> dict:
+def evaluate_case(case: dict, *, budget: Budget, source: str = "fda") -> dict:
     out = {"id": case["id"], "category": case["category"], "question": case["question"]}
     try:
-        gen = generate(case["question"], budget=budget)
+        gen = generate(case["question"], budget=budget, source=source)
     except BudgetExceeded as err:
         out.update(status="budget_exceeded", detail=str(err))
         return out
@@ -102,7 +105,10 @@ def evaluate_case(case: dict, *, budget: Budget) -> dict:
 
     out["generated_sql"] = gen.decision.sql
     try:
-        res = run_sql(gen.decision.sql, question=case["question"])
+        res = run_sql(
+            gen.decision.sql, question=case["question"],
+            allowlist=get_source(source).tables,
+        )
     except SqlValidationError as err:
         out.update(status="fail", detail=f"blocked by guard: {err}")
         return out
@@ -132,7 +138,8 @@ def main(argv: list[str] | None = None) -> int:
 
     cases = doc["cases"]
     if not args.full:
-        cases = [c for c in cases if c["id"] in SAMPLE_IDS]
+        ids = SAMPLE_IDS if doc.get("source", "fda") == "fda" else PB_SAMPLE_IDS
+        cases = [c for c in cases if c["id"] in ids]
         print(f"sample mode: {len(cases)} of {len(doc['cases'])} cases (--full for all)\n")
 
     budget = Budget(ceiling_usd=args.ceiling) if args.ceiling else Budget()
@@ -146,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
     results = []
     for case in cases:
         try:
-            r = evaluate_case(case, budget=budget)
+            r = evaluate_case(case, budget=budget, source=doc.get("source", "fda"))
         except MissingCredentials as err:
             print(f"\n{err}", file=sys.stderr)
             return 2

@@ -16,7 +16,12 @@ from fda_agent import config
 from fda_agent.config import SCHEMA_VERSION
 from fda_agent.llm.budget import Budget, BudgetExceeded, Usage
 from fda_agent.llm.cache import ResponseCache, cache_key
-from fda_agent.prompts import PROMPT_VERSION, build_system_prompt, contract_hash
+from fda_agent.prompts import (
+    Source,
+    build_system_prompt_for,
+    contract_hash_for,
+    get_source,
+)
 
 
 class SqlDecision(BaseModel):
@@ -50,6 +55,7 @@ class Generation:
     schema_version: str
     contract_hash: str
     cached: bool
+    source: str = "fda"
     cost_usd: float = 0.0
     usage: dict = field(default_factory=dict)
 
@@ -113,7 +119,7 @@ def supports_effort(model: str) -> bool:
     return model in SUPPORTS_EFFORT
 
 
-def _request_payload(question: str, system: str, effort: str) -> dict:
+def _request_payload(question: str, system: str, effort: str, source: Source) -> dict:
     """Everything that determines the answer, and nothing that does not.
 
     Timestamps and request ids are deliberately excluded — including them would
@@ -121,8 +127,9 @@ def _request_payload(question: str, system: str, effort: str) -> dict:
     """
     return {
         "model": config.MODEL_ID,
-        "prompt_version": PROMPT_VERSION,
-        "contract_hash": contract_hash(),
+        "source": source.name,
+        "prompt_version": source.prompt_version,
+        "contract_hash": contract_hash_for(source),
         "effort": effort,
         "system": system,
         "question": question,
@@ -138,6 +145,7 @@ def generate(
     budget: Budget | None = None,
     effort: str = "medium",
     use_cache: bool = True,
+    source: str = "fda",
 ) -> Generation:
     """Generate a decision for one question.
 
@@ -147,9 +155,10 @@ def generate(
     """
     cache = cache or ResponseCache()
     budget = budget or Budget()
-    system = build_system_prompt()
+    src = get_source(source)
+    system = build_system_prompt_for(src)
     effective_effort = effort if supports_effort(config.MODEL_ID) else None
-    payload = _request_payload(question, system, effective_effort)
+    payload = _request_payload(question, system, effective_effort, src)
     key = cache_key(payload)
 
     if use_cache and (hit := cache.get(key)) is not None:
@@ -157,10 +166,11 @@ def generate(
             question=question,
             decision=SqlDecision.model_validate(hit),
             model_id=config.MODEL_ID,
-            prompt_version=PROMPT_VERSION,
+            prompt_version=src.prompt_version,
             schema_version=SCHEMA_VERSION,
             contract_hash=payload["contract_hash"],
             cached=True,
+            source=src.name,
         )
 
     budget.check()
@@ -199,7 +209,7 @@ def generate(
         decision.model_dump(),
         meta={
             "model_id": config.MODEL_ID,
-            "prompt_version": PROMPT_VERSION,
+            "prompt_version": src.prompt_version,
             "schema_version": SCHEMA_VERSION,
             "contract_hash": payload["contract_hash"],
             "question": question,
@@ -210,10 +220,11 @@ def generate(
         question=question,
         decision=decision,
         model_id=config.MODEL_ID,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=src.prompt_version,
         schema_version=SCHEMA_VERSION,
         contract_hash=payload["contract_hash"],
         cached=False,
         cost_usd=cost,
         usage=usage.__dict__,
+        source=src.name,
     )

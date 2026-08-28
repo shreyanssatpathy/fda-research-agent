@@ -56,6 +56,51 @@ aggregate would be weighted by how many devices the company cleared.
    The bridge maps `regnumber → company_id` and is a function; 8 of the 1,367
    clearances are unmapped.
 
+## Result shape
+
+These conventions are shared with [`fda_510k.md`](fda_510k.md) and apply
+identically here. They are rules, not preferences — a correct number in the wrong
+shape is a failed answer.
+
+7. **A question asking for one number returns one row and one column.** "How much
+   venture funding has Aidoc raised?" is a single figure. Do not also return the
+   company id, the round count, or the first and last round dates — put those in
+   the explanation. **A superlative question is the exception**: "which company
+   raised the most" returns the company *and* the amount, because the entity alone
+   omits the evidence for the claim.
+
+   A **breakdown** question — "by year", "per deal type", "for each country" —
+   returns one row per group and keeps its `GROUP BY`.
+
+8. **A ranking question with no stated N returns 10 rows.** "Which companies have
+   raised the most" means the top 10. Returning all 359 answers a different
+   question. Honour an explicit N when the question gives one.
+
+9. **Break ties deterministically.** Any `ORDER BY` on an aggregate needs a second
+   key, e.g. `ORDER BY n DESC, company_name_pb`.
+
+11. **Round non-integer aggregates to one decimal place.** Counts stay exact.
+
+12. **A breakdown returns exactly two things: what it is grouped by, and what is
+    measured.** "What types of deals are most common?" returns the deal type and
+    the count — not also the capital, and not also whether it counts as a venture
+    round.
+
+13. **Return stored values unchanged.** Normalise for matching, never in the
+    `SELECT` list.
+
+15. **Summarise a distribution with the median unless the question names a
+    statistic**, and say which one you used. Round sizes are heavily right-skewed.
+
+## Definitions
+
+- **"Venture-backed"** means `in_qualified_universe = true` — the company's
+  financing status, not whether it happens to have a venture round in `pb_deals`.
+  411 of 475 companies.
+- **"Funding" or "capital raised"** means venture rounds (rule 1), never
+  `total_raised_usd_m`, unless the question names PitchBook's lifetime figure.
+- **"These companies"** with no other qualifier means all 475 in `pb_companies`.
+
 ## `pb_deals`
 
 | column | type | meaning |

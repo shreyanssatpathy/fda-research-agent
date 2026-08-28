@@ -17,6 +17,7 @@ import pandas as pd
 from fda_agent.llm.budget import Budget, BudgetExceeded
 from fda_agent.query import QueryTimeout, run as run_sql
 from fda_agent.sql_guard import SqlValidationError
+from fda_agent.prompts import get_source
 from fda_agent.text_to_sql import Generation, MissingCredentials, generate
 
 # answered  - SQL ran and returned rows
@@ -40,20 +41,29 @@ class Answer:
     generation: Generation | None = None
     duration_ms: int | None = None
     limit_applied: bool = False
+    source: str = "fda"
 
     @property
     def is_declined(self) -> bool:
         return self.outcome in ("refused", "clarify")
 
 
-def answer(question: str, *, budget: Budget | None = None) -> Answer:
-    """Answer one question end to end. Never raises for expected failures."""
+def answer(
+    question: str, *, budget: Budget | None = None, source: str = "fda"
+) -> Answer:
+    """Answer one question end to end. Never raises for expected failures.
+
+    `source` selects which contract the model is given and which tables the guard
+    permits. The two are kept in lockstep: a model told about `pb_deals` is also
+    allowed to query it, and a model told about FDA data cannot reach PitchBook
+    tables even if it writes SQL for them.
+    """
     question = (question or "").strip()
     if not question:
         return Answer(question, "error", "Ask a question first.")
 
     try:
-        gen = generate(question, budget=budget or Budget())
+        gen = generate(question, budget=budget or Budget(), source=source)
     except MissingCredentials as err:
         return Answer(question, "error", str(err))
     except BudgetExceeded as err:
@@ -64,6 +74,7 @@ def answer(question: str, *, budget: Budget | None = None) -> Answer:
         generated_sql=gen.decision.sql,
         caveats=gen.decision.caveats,
         generation=gen,
+        source=source,
     )
 
     if gen.decision.action == "refuse":
@@ -72,7 +83,9 @@ def answer(question: str, *, budget: Budget | None = None) -> Answer:
         return Answer(outcome="clarify", message=gen.decision.explanation, **base)
 
     try:
-        result = run_sql(gen.decision.sql, question=question)
+        result = run_sql(
+            gen.decision.sql, question=question, allowlist=get_source(source).tables
+        )
     except SqlValidationError as err:
         return Answer(
             outcome="blocked",

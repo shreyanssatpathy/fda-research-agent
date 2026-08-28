@@ -8,6 +8,7 @@ changes the cache key, which forces regeneration. That coupling is deliberate.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from pathlib import Path
 
 from fda_agent.config import REPO_ROOT
@@ -15,6 +16,7 @@ from fda_agent.config import REPO_ROOT
 PROMPT_VERSION = "text_to_sql/v1"
 
 CONTRACT_PATH = REPO_ROOT / "docs" / "contracts" / "fda_510k.md"
+PITCHBOOK_CONTRACT_PATH = REPO_ROOT / "docs" / "contracts" / "pitchbook.md"
 
 _INSTRUCTIONS = """\
 You translate questions about FDA medical device data into DuckDB SQL.
@@ -64,3 +66,96 @@ def contract_hash() -> str:
 
 def build_system_prompt() -> str:
     return f"{_INSTRUCTIONS}\n\n---\n\n{contract_text()}"
+
+_PITCHBOOK_INSTRUCTIONS = """\
+You translate questions about MedTech company funding into DuckDB SQL.
+
+You are given a contract describing the tables you may query. Treat it as
+authoritative: it documents which deal types count as fundraising, which totals
+are floors rather than totals, and which companies are outside the data by design.
+Read it before deciding what to do.
+
+Choose exactly one action.
+
+`sql` — the question is answerable from these tables.
+  - Write a single SELECT against `pb_deals` and `pb_companies`. No other table
+    exists for you. In particular `fda_510k` is not available here: you cannot
+    answer questions that need FDA clearance dates or device information.
+  - Follow every rule in the contract's "Rules the generated SQL must follow".
+    Rule 1 is the one that matters most: capital raised means
+    `is_venture_round = true`, always.
+  - Joining `pb_deals` to `pb_companies` on `company_id` is safe — one company,
+    many deals. Never join on a company name.
+  - Put any qualification the SQL cannot express into `caveats` — that a total
+    counts only disclosed rounds, that valuations are mostly null, that a company
+    outside the venture universe has no funding profile here.
+
+`refuse` — the data cannot answer the question, even though it sounds close.
+  Refuse when the question needs FDA data (clearance dates, devices, product
+  codes), asks about investors (not in these tables), asks about a company outside
+  the venture universe, or asks for a figure the load rules removed. Say plainly
+  what is missing. Never return zero to mean "no data": a company with no deals
+  here is unmeasured, not unfunded.
+
+`clarify` — the question is ambiguous and a reasonable analyst would ask first.
+  Use this when a company reference matches more than one company, when "funding"
+  could mean venture rounds or PitchBook's lifetime `total_raised_usd_m`, or when
+  no entity is named. Ask one specific question.
+
+Never invent a column, a table, or a value. If a column you want does not appear
+in the contract, it does not exist.
+"""
+
+
+@dataclass(frozen=True)
+class Source:
+    """One queryable source: its contract, prompt, and permitted tables.
+
+    Kept separate per source rather than merged into one prompt. A single prompt
+    covering both would invite cross-source joins in generated SQL, and a join
+    across sources can fan out silently — the guard validates table names and
+    functions, not cardinality. Composition happens in code, over a resolved
+    company, where row counts can be asserted.
+    """
+
+    name: str
+    contract_path: Path
+    instructions: str
+    tables: frozenset
+    prompt_version: str
+
+
+SOURCES = {
+    "fda": Source(
+        name="fda",
+        contract_path=CONTRACT_PATH,
+        instructions=_INSTRUCTIONS,
+        tables=frozenset({"fda_510k"}),
+        prompt_version=PROMPT_VERSION,
+    ),
+    "pitchbook": Source(
+        name="pitchbook",
+        contract_path=PITCHBOOK_CONTRACT_PATH,
+        instructions=_PITCHBOOK_INSTRUCTIONS,
+        tables=frozenset({"pb_deals", "pb_companies"}),
+        prompt_version="text_to_sql_pitchbook/v1",
+    ),
+}
+
+
+def get_source(name: str) -> Source:
+    if name not in SOURCES:
+        raise ValueError(f"unknown source {name!r}; known: {sorted(SOURCES)}")
+    return SOURCES[name]
+
+
+def contract_text_for(source: Source) -> str:
+    return source.contract_path.read_text()
+
+
+def contract_hash_for(source: Source) -> str:
+    return hashlib.sha256(contract_text_for(source).encode()).hexdigest()[:12]
+
+
+def build_system_prompt_for(source: Source) -> str:
+    return f"{source.instructions}\n\n---\n\n{contract_text_for(source)}"

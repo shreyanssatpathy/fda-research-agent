@@ -39,6 +39,42 @@ FORBIDDEN_NODES = (
 )
 
 
+# Functions sqlglot does not model but which are safe: pure scalar/aggregate
+# computation, no filesystem, no network, no catalog access.
+#
+# Added because rejecting every unrecognised function had a false-positive cost I
+# had claimed was zero. That claim was verified against the FDA golden set, which
+# never used one — the PitchBook set immediately produced `date_part('year', ...)`,
+# valid SQL blocked as if it were an exfiltration attempt. An allowlist keeps the
+# default-deny posture while letting real queries through; each entry is a
+# deliberate, reviewable decision.
+FUNCTION_ALLOWLIST = frozenset({
+    "date_part",
+    "date_trunc",
+    "datediff",
+    "date_diff",
+    "epoch",
+    "last_day",
+    "monthname",
+    "dayname",
+    "list_aggregate",
+    "regexp_extract",
+    "string_split",
+    "levenshtein",
+    "median",
+    "mode",
+    "quantile_cont",
+    "quantile_disc",
+    "stddev_samp",
+    "stddev_pop",
+    "var_samp",
+    "corr",
+    "greatest",
+    "least",
+    "ifnull",
+})
+
+
 class SqlValidationError(Exception):
     """Raised when generated SQL is not safe to execute. Never caught silently."""
 
@@ -94,6 +130,8 @@ def _check_functions(tree: exp.Expression) -> None:
     query in the frozen golden set does — so this costs nothing legitimate.
     """
     for fn in tree.find_all(exp.Anonymous):
+        if fn.name.lower() in FUNCTION_ALLOWLIST:
+            continue
         raise SqlValidationError(
             f"function {fn.name!r} is not on the permitted list; "
             "unrecognised functions are rejected because DuckDB exposes "

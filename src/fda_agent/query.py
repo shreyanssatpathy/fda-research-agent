@@ -17,7 +17,13 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from fda_agent.config import DATA_DIR, DB_PATH, MAX_ROWS, STATEMENT_TIMEOUT_S
+from fda_agent.config import (
+    DATA_DIR,
+    DB_PATH,
+    MAX_ROWS,
+    STATEMENT_TIMEOUT_S,
+    TABLE_ALLOWLIST,
+)
 from fda_agent.db import connect
 from fda_agent.sql_guard import SqlValidationError, ValidatedQuery, validate
 
@@ -51,6 +57,7 @@ def run(
     timeout_s: int = STATEMENT_TIMEOUT_S,
     max_rows: int = MAX_ROWS,
     log_path: Path = QUERY_LOG,
+    allowlist: frozenset[str] = TABLE_ALLOWLIST,
 ) -> QueryResult:
     """Validate, execute under a timeout, and log. Raises on rejection or timeout.
 
@@ -65,7 +72,7 @@ def run(
     }
 
     try:
-        validated = validate(sql, max_rows=max_rows)
+        validated = validate(sql, max_rows=max_rows, allowlist=allowlist)
     except SqlValidationError as err:
         record.update(outcome="rejected", error=str(err))
         _log(record, log_path)

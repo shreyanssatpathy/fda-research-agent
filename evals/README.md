@@ -262,3 +262,66 @@ the result as 37±1.
 
 *Lesson: flagging a fitting risk is not the same as avoiding it. On an unstable
 case, one run is not evidence — re-run before correcting, or leave it alone.*
+
+
+---
+
+# `golden_pitchbook.yaml` — 23 cases
+
+**Status: FROZEN 2026-08-27.** Standalone: no cross-source questions, so a failure
+is attributable to one layer. 15 answerable, 6 refuse, 2 clarify.
+
+## Result: 18/23
+
+| category | score |
+|---|---|
+| refuse_needs_fda | **3/3** |
+| refuse_not_in_data | **3/3** |
+| clarify | **2/2** |
+| capital | 3/4 |
+| deals | 3/4 |
+| companies | 2/3 |
+| count | 2/4 |
+
+**All 8 decline cases pass on the first run.** The tool refuses questions needing
+FDA data, refuses investor and revenue questions, refuses funding for companies
+outside the venture universe, and asks which Samsung is meant.
+
+## What the first run found
+
+### A real bug in the SQL guard
+
+`date_part('year', deal_date)` was **blocked as an unrecognised function**. It is
+valid, harmless DuckDB, and it was treated as an exfiltration attempt.
+
+The claim in `sql-safety.md` — that rejecting every unrecognised function "costs
+nothing legitimate" — was verified against the FDA golden set, which never used
+one. It was true of that sample, not of SQL in general. Fixed with an explicit
+`FUNCTION_ALLOWLIST` of safe scalar and aggregate functions; every filesystem
+reader is still rejected, with tests asserting both halves and a test forbidding
+`read_*` from ever entering the allowlist.
+
+### A contract I wrote without the lessons of the previous one
+
+The first run scored **9/23**. Every answerable failure was extra columns or a
+missing `LIMIT` — the values were all correct. The FDA contract earned its
+result-shape rules over five iterations; I wrote the PitchBook contract from
+scratch and never ported them. Adding rules 7, 8, 9, 11, 12, 13 and 15 took it to
+17/23 in one pass.
+
+*Lesson: contract conventions are source-agnostic and should be shared, not
+rediscovered per source.*
+
+## Known defects in this set's reference SQL
+
+Recorded, not fixed — the set is frozen.
+
+| id | issue |
+|---|---|
+| P01 | "How many funding deals" — the reference counts all 1,988 deals including share repurchases. The system counted the 1,240 venture rounds, which is the better reading of "funding". |
+| P03 | "How many companies have funding data" is ambiguous between any deal and any venture round; the system asked, which is defensible. |
+| P05 | The reference rounds to 2 decimals (`420.26`), violating the contract's own rule 11. The system returned `420.3`, correctly. |
+| P12 | A listing convention is missing — PitchBook has no equivalent of FDA rule 14, so column choice for "show all rounds" is unspecified. |
+| P13 | "Which countries…" is an enumeration, not a ranking; the reference caps at 10. Same ambiguity as G01 in the FDA set. |
+
+Three of the five are cases where **the system was more right than the reference**.

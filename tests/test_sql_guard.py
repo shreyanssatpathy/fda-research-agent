@@ -186,3 +186,45 @@ def test_malformed_rejected(sql):
 def test_query_with_no_table_rejected():
     with pytest.raises(SqlValidationError, match="no allowlisted table"):
         validate("SELECT 1")
+
+
+# --- function allowlist (added 2026-08-27) -----------------------------------------
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT date_part('year', decision_date) AS y FROM fda_510k",
+        "SELECT date_trunc('month', decision_date) FROM fda_510k",
+        "SELECT median(decision_year) FROM fda_510k",
+    ],
+)
+def test_safe_unmodelled_functions_are_allowed(sql):
+    """sqlglot does not model every DuckDB function.
+
+    Rejecting all of them blocked `date_part('year', ...)` — valid, harmless SQL
+    treated as an exfiltration attempt. The claim that this cost nothing
+    legitimate held only for the FDA query set that was used to check it.
+    """
+    assert validate(sql).sql
+
+
+def test_allowlisted_functions_do_not_reopen_filesystem_access():
+    """The allowlist must not become a hole. Every file reader still rejected."""
+    for sql in (
+        "SELECT read_text('/etc/passwd') FROM fda_510k",
+        "SELECT * FROM read_csv_auto('/etc/passwd')",
+        "SELECT * FROM glob('/**')",
+        "SELECT * FROM read_parquet('/tmp/x')",
+    ):
+        with pytest.raises(SqlValidationError):
+            validate(sql)
+
+
+def test_function_allowlist_contains_no_file_readers():
+    """Guards against a careless future addition."""
+    from fda_agent.sql_guard import FUNCTION_ALLOWLIST
+
+    for name in FUNCTION_ALLOWLIST:
+        assert not name.startswith("read_"), name
+        assert name not in {"glob", "copy", "install", "load", "attach"}
