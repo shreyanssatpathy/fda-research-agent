@@ -1,0 +1,1321 @@
+schema_version: 4.0.0
+supersedes: golden_v3.yaml
+frozen: true
+frozen_on: '2026-08-27'
+note: FROZEN 2026-08-27. v1-v3 remain frozen. No reference SQL changed; expected answers were re-executed after entity
+  resolution merged 13 company-name variants. Questions are byte-identical to v1.
+cases:
+- id: C01
+  category: count
+  question: How many AI-enabled devices have been cleared through 510(k)?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM fda_510k
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 1367
+    truncated: false
+- id: C02
+  category: count
+  question: How many distinct companies have AI 510(k) clearances?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(DISTINCT company_name) AS n FROM fda_510k
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 459
+    truncated: false
+  changed_in_v4: Expected answer re-executed after PitchBook-bridge entity resolution merged 13 company-name
+    variants. Reference SQL unchanged.
+- id: C03
+  category: count
+  question: How many AI devices were cleared in 2023?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE decision_year = 2023
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 219
+    truncated: false
+- id: C04
+  category: count
+  question: How many AI clearances went through the Third Party Review Program?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE third_party
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 19
+    truncated: false
+- id: C05
+  category: count
+  question: How many Special 510(k) submissions are there?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE submission_type = 'Special'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 160
+    truncated: false
+- id: M01
+  category: company
+  question: Show all FDA clearances for Aidoc.
+  expects: answer
+  note: Company filters must use company_name, not applicant_raw.
+  reference_sql: SELECT * FROM fda_510k WHERE (lower(company_name) = lower('Aidoc') OR lower(company_name)
+    LIKE lower('Aidoc') || ' %') ORDER BY decision_date
+  expected_answer:
+    row_count: 31
+    columns:
+    - regnumber
+    - pathway
+    - applicant_raw
+    - company_name
+    - company_name_source
+    - street
+    - city
+    - state
+    - country
+    - zip
+    - committee_code
+    - medical_specialty
+    - product_code
+    - submission_type
+    - date_received
+    - decision_date
+    - decision_code
+    - device_trade_name
+    - device_classification_name
+    - device_class
+    - regulation_number
+    - third_party
+    - year_received
+    - decision_year
+    - pb_company_id
+    rows:
+    - regnumber: K180647
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: Yigal Alon 92
+      city: Tel Aviv
+      state: null
+      country: IL
+      zip: '6789138'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Traditional
+      date_received: '2018-03-12'
+      decision_date: '2018-08-01'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2018
+      decision_year: 2018
+      pb_company_id: 169854-94
+    - regnumber: K190072
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 92 Yigal Alon St.
+      city: Tel Aviv
+      state: null
+      country: IL
+      zip: '67891'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Traditional
+      date_received: '2019-01-15'
+      decision_date: '2019-04-15'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2019
+      decision_year: 2019
+      pb_company_id: 169854-94
+    - regnumber: K190896
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 92 Yigal Alon St.
+      city: Tel-Aviv
+      state: null
+      country: IL
+      zip: '6789134'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Traditional
+      date_received: '2019-04-05'
+      decision_date: '2019-05-31'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2019
+      decision_year: 2019
+      pb_company_id: 169854-94
+    - regnumber: K192383
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 3 Aminadav St.
+      city: Tell-Aviv
+      state: null
+      country: IL
+      zip: '6706703'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Traditional
+      date_received: '2019-08-30'
+      decision_date: '2019-12-20'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2019
+      decision_year: 2019
+      pb_company_id: 169854-94
+    - regnumber: K193298
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 3 Aminadav St.
+      city: Tell-Aviv
+      state: null
+      country: IL
+      zip: '6706703'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Traditional
+      date_received: '2019-11-27'
+      decision_date: '2020-06-19'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2019
+      decision_year: 2020
+      pb_company_id: 169854-94
+    - regnumber: K201020
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 3 Aminadav St.
+      city: Tell-Aviv
+      state: null
+      country: IL
+      zip: '6706703'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Traditional
+      date_received: '2020-04-17'
+      decision_date: '2020-08-26'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2020
+      decision_year: 2020
+      pb_company_id: 169854-94
+    - regnumber: K203508
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 3 Aminaday St.
+      city: Tel-Aviv
+      state: null
+      country: IL
+      zip: '6706703'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Special
+      date_received: '2020-11-30'
+      decision_date: '2020-12-29'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2020
+      decision_year: 2020
+      pb_company_id: 169854-94
+    - regnumber: K202992
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 3 Aminaday St.
+      city: Tel-Aviv
+      state: null
+      country: IL
+      zip: '6706703'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2020-09-30'
+      decision_date: '2021-04-14'
+      decision_code: SESE
+      device_trade_name: BriefCase, RIB Fractures Triage (RibFx)
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2020
+      decision_year: 2021
+      pb_company_id: 169854-94
+    - regnumber: K214043
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 3 Aminadav St.
+      city: Tell-Aviv
+      state: null
+      country: IL
+      zip: '6706703'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2021-12-23'
+      decision_date: '2022-03-14'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2021
+      decision_year: 2022
+      pb_company_id: 169854-94
+    - regnumber: K213721
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 3 Aminadav St.
+      city: Tell-Aviv
+      state: null
+      country: IL
+      zip: '6706703'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Traditional
+      date_received: '2021-11-24'
+      decision_date: '2022-03-21'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2021
+      decision_year: 2022
+      pb_company_id: 169854-94
+    - regnumber: K213886
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 3 Aminaday St.
+      city: Tel-Aviv
+      state: null
+      country: IL
+      zip: '6706703'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Traditional
+      date_received: '2021-12-13'
+      decision_date: '2022-04-26'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2021
+      decision_year: 2022
+      pb_company_id: 169854-94
+    - regnumber: K221240
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 3 Aminadav St.
+      city: Tell-Aviv
+      state: null
+      country: IL
+      zip: '6706703'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Special
+      date_received: '2022-04-29'
+      decision_date: '2022-05-17'
+      decision_code: SESE
+      device_trade_name: BriefCase
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2022
+      decision_year: 2022
+      pb_company_id: 169854-94
+    truncated: true
+  changed_in_v3: 'Rule 14 (changed 2026-08-27): a clearance listing returns every column. v2 froze the
+    superseded four-column projection.'
+  changed_in_v4: Expected answer re-executed after PitchBook-bridge entity resolution merged 13 company-name
+    variants. Reference SQL unchanged.
+- id: M02
+  category: company
+  question: Which companies have the most AI device clearances?
+  expects: answer
+  note: null
+  reference_sql: SELECT company_name, count(*) AS n FROM fda_510k GROUP BY 1 ORDER BY n DESC, company_name
+    LIMIT 10
+  expected_answer:
+    row_count: 10
+    columns:
+    - company_name
+    - n
+    rows:
+    - company_name: GE Healthcare
+      n: 95
+    - company_name: Siemens
+      n: 84
+    - company_name: Canon Medical Systems
+      n: 38
+    - company_name: Philips
+      n: 38
+    - company_name: United Imaging
+      n: 38
+    - company_name: Aidoc Medical
+      n: 31
+    - company_name: Ischema View
+      n: 20
+    - company_name: Samsung Medison
+      n: 18
+    - company_name: Hyperfine
+      n: 13
+    - company_name: Clarius Mobile Health
+      n: 11
+    truncated: false
+  changed_in_v4: Expected answer re-executed after PitchBook-bridge entity resolution merged 13 company-name
+    variants. Reference SQL unchanged.
+- id: M03
+  category: company
+  question: How many clearances does GE Healthcare have?
+  expects: answer
+  note: 15 applicant_raw spellings collapse here; filtering the raw field undercounts.
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE company_name = 'GE Healthcare'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 95
+    truncated: false
+- id: M04
+  category: company
+  question: How many companies have only ever had one AI clearance?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM (SELECT company_name FROM fda_510k GROUP BY 1 HAVING count(*)
+    = 1)
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 241
+    truncated: false
+  changed_in_v4: Expected answer re-executed after PitchBook-bridge entity resolution merged 13 company-name
+    variants. Reference SQL unchanged.
+- id: M05
+  category: company
+  question: List companies with at least 10 AI clearances.
+  expects: answer
+  note: null
+  reference_sql: SELECT company_name, count(*) AS n FROM fda_510k GROUP BY 1 HAVING count(*) >= 10 ORDER
+    BY n DESC, company_name
+  expected_answer:
+    row_count: 16
+    columns:
+    - company_name
+    - n
+    rows:
+    - company_name: GE Healthcare
+      n: 95
+    - company_name: Siemens
+      n: 84
+    - company_name: Canon Medical Systems
+      n: 38
+    - company_name: Philips
+      n: 38
+    - company_name: United Imaging
+      n: 38
+    - company_name: Aidoc Medical
+      n: 31
+    - company_name: Ischema View
+      n: 20
+    - company_name: Samsung Medison
+      n: 18
+    - company_name: Hyperfine
+      n: 13
+    - company_name: Clarius Mobile Health
+      n: 11
+    - company_name: Dia Imaging Analysis
+      n: 11
+    - company_name: Brainlab
+      n: 10
+    truncated: true
+  changed_in_v4: Expected answer re-executed after PitchBook-bridge entity resolution merged 13 company-name
+    variants. Reference SQL unchanged.
+- id: F01
+  category: first_clearance
+  question: When did Viz.ai receive its first AI clearance?
+  expects: answer
+  note: Answer must say 'first AI-enabled 510(k) in this dataset', not 'first FDA clearance'.
+  reference_sql: SELECT min(decision_date) AS first_clearance FROM fda_510k WHERE company_name = 'Viz.Ai'
+  expected_answer:
+    row_count: 1
+    columns:
+    - first_clearance
+    rows:
+    - first_clearance: '2018-04-20'
+    truncated: false
+- id: F02
+  category: first_clearance
+  question: Which companies received their first AI clearance in 2023?
+  expects: answer
+  note: null
+  reference_sql: SELECT company_name, min(decision_date) AS first_clearance FROM fda_510k GROUP BY 1 HAVING
+    year(min(decision_date)) = 2023 ORDER BY first_clearance, company_name
+  expected_answer:
+    row_count: 67
+    columns:
+    - company_name
+    - first_clearance
+    rows:
+    - company_name: Quanta Computer
+      first_clearance: '2023-01-27'
+    - company_name: Belun Technology
+      first_clearance: '2023-02-23'
+    - company_name: Brainomix
+      first_clearance: '2023-02-23'
+    - company_name: Alio
+      first_clearance: '2023-03-17'
+    - company_name: NeuroRPM
+      first_clearance: '2023-03-17'
+    - company_name: Medipixel
+      first_clearance: '2023-03-22'
+    - company_name: Nobel Biocare
+      first_clearance: '2023-03-28'
+    - company_name: Synapsica
+      first_clearance: '2023-03-28'
+    - company_name: Formus
+      first_clearance: '2023-03-31'
+    - company_name: BK Medical Holding
+      first_clearance: '2023-04-11'
+    - company_name: Shukun
+      first_clearance: '2023-04-13'
+    - company_name: Brainlab
+      first_clearance: '2023-04-19'
+    truncated: true
+- id: F03
+  category: first_clearance
+  question: How many companies entered the AI device market each year?
+  expects: answer
+  note: null
+  reference_sql: SELECT year(first_clearance) AS yr, count(*) AS n FROM (SELECT company_name, min(decision_date)
+    AS first_clearance FROM fda_510k GROUP BY 1) GROUP BY 1 ORDER BY yr
+  expected_answer:
+    row_count: 16
+    columns:
+    - yr
+    - n
+    rows:
+    - yr: 2010
+      n: 2
+    - yr: 2011
+      n: 2
+    - yr: 2012
+      n: 2
+    - yr: 2013
+      n: 2
+    - yr: 2014
+      n: 5
+    - yr: 2015
+      n: 6
+    - yr: 2016
+      n: 14
+    - yr: 2017
+      n: 17
+    - yr: 2018
+      n: 44
+    - yr: 2019
+      n: 41
+    - yr: 2020
+      n: 38
+    - yr: 2021
+      n: 44
+    truncated: true
+  changed_in_v4: Expected answer re-executed after PitchBook-bridge entity resolution merged 13 company-name
+    variants. Reference SQL unchanged.
+- id: F04
+  category: first_clearance
+  question: Which company was the earliest to get an AI clearance?
+  expects: answer
+  note: null
+  reference_sql: SELECT company_name, min(decision_date) AS first_clearance FROM fda_510k GROUP BY 1 ORDER
+    BY first_clearance, company_name LIMIT 1
+  expected_answer:
+    row_count: 1
+    columns:
+    - company_name
+    - first_clearance
+    rows:
+    - company_name: Medica
+      first_clearance: '2010-05-12'
+    truncated: false
+  changed_in_v2: 'Rule 7: a singular question returns one row. v1''s LIMIT 3 was arbitrary.'
+- id: T01
+  category: time_series
+  question: How many AI devices were cleared annually since 2015?
+  expects: answer
+  note: The plan's headline question.
+  reference_sql: SELECT decision_year, count(*) AS n FROM fda_510k WHERE decision_year >= 2015 GROUP BY
+    1 ORDER BY decision_year
+  expected_answer:
+    row_count: 11
+    columns:
+    - decision_year
+    - n
+    rows:
+    - decision_year: 2015
+      n: 6
+    - decision_year: 2016
+      n: 17
+    - decision_year: 2017
+      n: 23
+    - decision_year: 2018
+      n: 58
+    - decision_year: 2019
+      n: 80
+    - decision_year: 2020
+      n: 113
+    - decision_year: 2021
+      n: 122
+    - decision_year: 2022
+      n: 160
+    - decision_year: 2023
+      n: 219
+    - decision_year: 2024
+      n: 225
+    - decision_year: 2025
+      n: 328
+    truncated: false
+- id: T02
+  category: time_series
+  question: How long does it take from submission to decision, on average?
+  expects: answer
+  note: Uses both date columns; must not confuse date_received with decision_date.
+  reference_sql: SELECT round(avg(date_diff('day', date_received, decision_date)), 1) AS avg_days FROM
+    fda_510k
+  expected_answer:
+    row_count: 1
+    columns:
+    - avg_days
+    rows:
+    - avg_days: 151.8
+    truncated: false
+- id: T03
+  category: time_series
+  question: Has review time gotten longer over the years?
+  expects: answer
+  note: null
+  reference_sql: SELECT decision_year, round(median(date_diff('day', date_received, decision_date)), 1)
+    AS median_days FROM fda_510k GROUP BY 1 ORDER BY decision_year
+  expected_answer:
+    row_count: 16
+    columns:
+    - decision_year
+    - median_days
+    rows:
+    - decision_year: 2010
+      median_days: 279
+    - decision_year: 2011
+      median_days: 272.5
+    - decision_year: 2012
+      median_days: 70.5
+    - decision_year: 2013
+      median_days: 240
+    - decision_year: 2014
+      median_days: 93
+    - decision_year: 2015
+      median_days: 247.5
+    - decision_year: 2016
+      median_days: 148
+    - decision_year: 2017
+      median_days: 119
+    - decision_year: 2018
+      median_days: 109
+    - decision_year: 2019
+      median_days: 128
+    - decision_year: 2020
+      median_days: 140
+    - decision_year: 2021
+      median_days: 118
+    truncated: true
+  changed_in_v2: 'Rule 12: a breakdown returns the grouping column and the measure only. v1 also returned
+    a clearance count the question never asked for.'
+- id: T04
+  category: time_series
+  question: How many AI clearances were there in the last full year of data?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE decision_year = (SELECT max(decision_year) FROM
+    fda_510k)
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 328
+    truncated: false
+  changed_in_v2: 'Rule 7: ''how many'' is scalar. v1 also returned decision_year.'
+- id: D01
+  category: device
+  question: Which product codes have the most AI clearances?
+  expects: answer
+  note: Rollups use product_code; device_classification_name is 34% null.
+  reference_sql: SELECT product_code, count(*) AS n FROM fda_510k GROUP BY 1 ORDER BY n DESC, product_code
+    LIMIT 10
+  expected_answer:
+    row_count: 10
+    columns:
+    - product_code
+    - n
+    rows:
+    - product_code: QIH
+      n: 258
+    - product_code: LLZ
+      n: 158
+    - product_code: IYN
+      n: 109
+    - product_code: JAK
+      n: 91
+    - product_code: LNH
+      n: 90
+    - product_code: QAS
+      n: 77
+    - product_code: QKB
+      n: 40
+    - product_code: QFM
+      n: 39
+    - product_code: MYN
+      n: 33
+    - product_code: MUJ
+      n: 30
+    truncated: false
+- id: D02
+  category: device
+  question: What medical specialties do AI devices fall under?
+  expects: answer
+  note: Must compare case-insensitively; 'pathology' is lowercase in the data.
+  reference_sql: SELECT medical_specialty, count(*) AS n FROM fda_510k GROUP BY 1 ORDER BY n DESC, medical_specialty
+  expected_answer:
+    row_count: 18
+    columns:
+    - medical_specialty
+    - n
+    rows:
+    - medical_specialty: Radiology
+      n: 1071
+    - medical_specialty: Cardiovascular
+      n: 123
+    - medical_specialty: Neurology
+      n: 45
+    - medical_specialty: Gastroenterology & Urology
+      n: 25
+    - medical_specialty: Orthopedic
+      n: 19
+    - medical_specialty: Anesthesiology
+      n: 17
+    - medical_specialty: Hematology
+      n: 16
+    - medical_specialty: General & Plastic Surgery
+      n: 10
+    - medical_specialty: Ophthalmic
+      n: 10
+    - medical_specialty: Clinical Chemistry
+      n: 7
+    - medical_specialty: pathology
+      n: 6
+    - medical_specialty: Microbiology
+      n: 5
+    truncated: true
+  changed_in_v2: 'Rule 13: return stored values. v1 lowercased in the SELECT, which the contract forbids
+    — normalise for matching, not for output.'
+- id: D03
+  category: device
+  question: How many AI clearances are in radiology?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE lower(medical_specialty) = 'radiology'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 1071
+    truncated: false
+- id: D04
+  category: device
+  question: Which product code grew fastest between 2020 and 2025?
+  expects: clarify
+  note: null
+  reference_sql: null
+  changed_in_v2: 'No correct SQL: ''grew fastest'' may mean absolute or percentage change. v1 silently
+    resolved it as absolute.'
+- id: D05
+  category: device
+  question: Find AI devices with 'triage' in the device name.
+  expects: answer
+  note: Device-name search means device_trade_name, not device_classification_name.
+  reference_sql: SELECT * FROM fda_510k WHERE lower(device_trade_name) LIKE '%triage%' ORDER BY decision_date
+  expected_answer:
+    row_count: 30
+    columns:
+    - regnumber
+    - pathway
+    - applicant_raw
+    - company_name
+    - company_name_source
+    - street
+    - city
+    - state
+    - country
+    - zip
+    - committee_code
+    - medical_specialty
+    - product_code
+    - submission_type
+    - date_received
+    - decision_date
+    - decision_code
+    - device_trade_name
+    - device_classification_name
+    - device_class
+    - regulation_number
+    - third_party
+    - year_received
+    - decision_year
+    - pb_company_id
+    rows:
+    - regnumber: K183285
+      pathway: 510(k)
+      applicant_raw: CUREMETRIX, INC.
+      company_name: Curemetrix
+      company_name_source: ming-mapping
+      street: 9404 Genesee Ave., Suite 330
+      city: La Jolla
+      state: CA
+      country: US
+      zip: '92037'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2018-11-26'
+      decision_date: '2019-03-08'
+      decision_code: SESE
+      device_trade_name: cmTriage
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2018
+      decision_year: 2019
+      pb_company_id: 65525-50
+    - regnumber: K193300
+      pathway: 510(k)
+      applicant_raw: RADLOGICS, INC.
+      company_name: Radlogics
+      company_name_source: ming-mapping
+      street: '24 Westland Ave., #28'
+      city: Boston
+      state: MA
+      country: US
+      zip: '02115'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2019-11-27'
+      decision_date: '2020-04-08'
+      decision_code: SESE
+      device_trade_name: AIMI-Triage CXR PTX
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2019
+      decision_year: 2020
+      pb_company_id: 88661-53
+    - regnumber: K193271
+      pathway: 510(k)
+      applicant_raw: SHANGHAI UNITED IMAGING INTELLIGENCE CO., LTD.
+      company_name: United Imaging
+      company_name_source: ming-mapping
+      street: '# 199 Huanke Rd.'
+      city: Shanghai
+      state: null
+      country: CN
+      zip: '201210'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2019-11-26'
+      decision_date: '2021-01-15'
+      decision_code: SESE
+      device_trade_name: uAI EasyTriage-Rib
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2019
+      decision_year: 2021
+      pb_company_id: 186495-40
+    - regnumber: K202992
+      pathway: 510(k)
+      applicant_raw: AIDOC MEDICAL , LTD.
+      company_name: Aidoc Medical
+      company_name_source: ming-mapping
+      street: 3 Aminaday St.
+      city: Tel-Aviv
+      state: null
+      country: IL
+      zip: '6706703'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2020-09-30'
+      decision_date: '2021-04-14'
+      decision_code: SESE
+      device_trade_name: BriefCase, RIB Fractures Triage (RibFx)
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2020
+      decision_year: 2021
+      pb_company_id: 169854-94
+    - regnumber: K211733
+      pathway: 510(k)
+      applicant_raw: LUNIT, INC.
+      company_name: Lunit
+      company_name_source: ming-mapping
+      street: 15th Floor, 27 Teheran-Ro 2-Gil
+      city: Seoul
+      state: null
+      country: KR
+      zip: '06241'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2021-06-04'
+      decision_date: '2021-11-10'
+      decision_code: SESE
+      device_trade_name: Lunit INSIGHT CXR Triage
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2021
+      decision_year: 2021
+      pb_company_id: 90200-08
+    - regnumber: K213941
+      pathway: 510(k)
+      applicant_raw: ANNALISE-AI
+      company_name: Annalise Ai
+      company_name_source: ming-mapping
+      street: Level 21, 60 Margaret St.
+      city: Sydney
+      state: null
+      country: AU
+      zip: '2000'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2021-12-16'
+      decision_date: '2022-02-24'
+      decision_code: SESE
+      device_trade_name: Annalise Enterprise CXR Triage Pneumothorax
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2021
+      decision_year: 2022
+      pb_company_id: 481667-86
+    - regnumber: K220499
+      pathway: 510(k)
+      applicant_raw: ISCHEMAVIEW, INC.
+      company_name: Ischema View
+      company_name_source: ming-mapping
+      street: 1120 Washington Ave.
+      city: Golden
+      state: CO
+      country: US
+      zip: '80401'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Traditional
+      date_received: '2022-02-22'
+      decision_date: '2022-05-17'
+      decision_code: SESE
+      device_trade_name: Rapid PE Triage and Notification (PETN)
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2022
+      decision_year: 2022
+      pb_company_id: 106958-71
+    - regnumber: K220080
+      pathway: 510(k)
+      applicant_raw: MEDCOGNETICS, INC.
+      company_name: Medcognetics
+      company_name_source: ming-mapping
+      street: 17217 Waterview Pkwy.
+      city: Dallas
+      state: TX
+      country: US
+      zip: '75252'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2022-01-10'
+      decision_date: '2022-09-29'
+      decision_code: SESE
+      device_trade_name: CogNet QmTRIAGE
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2022
+      decision_year: 2022
+      pb_company_id: 463081-33
+    - regnumber: K222179
+      pathway: 510(k)
+      applicant_raw: ANNALISE-AI PTY , LTD.
+      company_name: Annalise Ai
+      company_name_source: ming-mapping
+      street: Level P, 24 Campbell St.
+      city: Sydney
+      state: null
+      country: AU
+      zip: '2000'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2022-07-22'
+      decision_date: '2023-03-28'
+      decision_code: SESE
+      device_trade_name: Annalise Enterprise CXR Triage Trauma
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2022
+      decision_year: 2023
+      pb_company_id: 481667-86
+    - regnumber: K222268
+      pathway: 510(k)
+      applicant_raw: ANNALISE-AI PTY , LTD.
+      company_name: Annalise Ai
+      company_name_source: ming-mapping
+      street: Level P, 24 Campbell St.
+      city: Sydney
+      state: null
+      country: AU
+      zip: '2000'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2022-07-28'
+      decision_date: '2023-03-28'
+      decision_code: SESE
+      device_trade_name: Annalise Enterprise CXR Triage Trauma
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2022
+      decision_year: 2023
+      pb_company_id: 481667-86
+    - regnumber: K223240
+      pathway: 510(k)
+      applicant_raw: ANNALISE-AI PTY , LTD.
+      company_name: Annalise Ai
+      company_name_source: ming-mapping
+      street: Level 21, 60 Margaret St.
+      city: Sydney
+      state: null
+      country: AU
+      zip: '2000'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QAS
+      submission_type: Traditional
+      date_received: '2022-10-20'
+      decision_date: '2023-04-03'
+      decision_code: SESE
+      device_trade_name: Annalise Enterprise CTB Triage Trauma
+      device_classification_name: Radiological Computer-Assisted Triage And Notification Software
+      device_class: '2'
+      regulation_number: '892.2080'
+      third_party: false
+      year_received: 2022
+      decision_year: 2023
+      pb_company_id: 481667-86
+    - regnumber: K230074
+      pathway: 510(k)
+      applicant_raw: ISCHEMAVIEW, INC.
+      company_name: Ischema View
+      company_name_source: ming-mapping
+      street: 1120 Washington Ave.
+      city: Golden
+      state: CO
+      country: US
+      zip: '80401'
+      committee_code: RA
+      medical_specialty: Radiology
+      product_code: QFM
+      submission_type: Traditional
+      date_received: '2023-01-10'
+      decision_date: '2023-07-27'
+      decision_code: SESE
+      device_trade_name: Rapid Aneurysm Triage and Notification
+      device_classification_name: null
+      device_class: null
+      regulation_number: null
+      third_party: false
+      year_received: 2023
+      decision_year: 2023
+      pb_company_id: 106958-71
+    truncated: true
+  changed_in_v2: 'Rule 14: default projection for a clearance listing.'
+  changed_in_v3: 'Rule 14 (changed 2026-08-27): a clearance listing returns every column. v2 froze the
+    superseded four-column projection.'
+  changed_in_v4: Expected answer re-executed after PitchBook-bridge entity resolution merged 13 company-name
+    variants. Reference SQL unchanged.
+- id: D06
+  category: device
+  question: How many Class III AI devices were cleared?
+  expects: answer
+  note: device_class is 34% null; the answer should say so.
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE device_class = '3'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 33
+    truncated: false
+- id: G01
+  category: geography
+  question: Which countries do AI device companies file from?
+  expects: answer
+  note: null
+  reference_sql: SELECT country, count(DISTINCT company_name) AS n_companies FROM fda_510k GROUP BY 1
+    ORDER BY n_companies DESC, country
+  expected_answer:
+    row_count: 34
+    columns:
+    - country
+    - n_companies
+    rows:
+    - country: US
+      n_companies: 214
+    - country: IL
+      n_companies: 31
+    - country: FR
+      n_companies: 29
+    - country: CA
+      n_companies: 23
+    - country: GB
+      n_companies: 23
+    - country: KR
+      n_companies: 23
+    - country: CN
+      n_companies: 17
+    - country: SE
+      n_companies: 11
+    - country: TW
+      n_companies: 11
+    - country: AU
+      n_companies: 10
+    - country: NL
+      n_companies: 10
+    - country: DE
+      n_companies: 9
+    truncated: true
+  changed_in_v2: Rule 8 applies to rankings; this is an enumeration, so no LIMIT.
+  changed_in_v3: 'Defect: the question''s subject is companies, but the v2 reference counted clearances.
+    Counting distinct companies is the literal reading.'
+  changed_in_v4: Expected answer re-executed after PitchBook-bridge entity resolution merged 13 company-name
+    variants. Reference SQL unchanged.
+- id: G02
+  category: geography
+  question: How many AI clearances come from non-US companies?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM fda_510k WHERE country <> 'US'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 741
+    truncated: false
+- id: G03
+  category: geography
+  question: Which US state has the most AI device clearances?
+  expects: answer
+  note: null
+  reference_sql: SELECT state, count(*) AS n FROM fda_510k WHERE country = 'US' AND state IS NOT NULL
+    GROUP BY 1 ORDER BY n DESC, state LIMIT 1
+  expected_answer:
+    row_count: 1
+    columns:
+    - state
+    - n
+    rows:
+    - state: CA
+      n: 165
+    truncated: false
+  changed_in_v2: 'Rule 7: ''which state has the most'' is singular. v1''s LIMIT 5 was arbitrary.'
+- id: R01
+  category: refuse_out_of_range
+  question: How many AI devices were cleared in 2026?
+  expects: refuse
+  note: Data ends 2025-12-30. Must answer 'outside the data range', never 0.
+  reference_sql: null
+- id: R02
+  category: refuse_out_of_range
+  question: What is the AI clearance trend so far this year?
+  expects: decline
+  note: Current year is 2026 and has no rows. Must state the coverage boundary.
+  reference_sql: null
+  changed_in_v2: Refusing and clarifying are both defensible; expectation widened to `decline`.
+- id: R03
+  category: refuse_no_denominator
+  question: What percentage of all FDA clearances are AI-enabled?
+  expects: refuse
+  note: No non-AI baseline in the dataset. Must refuse, not compute against an AI-only base.
+  reference_sql: null
+- id: R04
+  category: refuse_no_denominator
+  question: What is the clearance rate for AI device submissions?
+  expects: refuse
+  note: Only successful clearances present; no denied submissions exist to form a rate.
+  reference_sql: null
+- id: R05
+  category: refuse_no_denominator
+  question: How many AI device submissions were rejected by the FDA?
+  expects: refuse
+  note: No NSE decisions in the data. Absence is not zero.
+  reference_sql: null
+- id: R06
+  category: refuse_not_in_data
+  question: How much funding did Aidoc raise before its first clearance?
+  expects: refuse
+  note: Investment data is out of V1 scope. Must not guess.
+  reference_sql: null
+- id: R07
+  category: refuse_not_in_data
+  question: Which AI devices were later recalled?
+  expects: refuse
+  note: No recall data in this table.
+  reference_sql: null
+- id: R08
+  category: refuse_not_in_data
+  question: How many PMA approvals do these companies have?
+  expects: refuse
+  note: V1 is 510(k) only; PMA rows were excluded at load.
+  reference_sql: null
+- id: A01
+  category: clarify
+  question: Show me Samsung's clearances.
+  expects: clarify
+  note: Samsung / Samsung Medison is an unresolved split; should ask which entity.
+  reference_sql: null
+- id: A02
+  category: clarify
+  question: How many devices has Canon cleared?
+  expects: clarify
+  note: Canon vs Canon Medical Systems vs Canon Medical Informatics; parent rollup is undecided.
+  reference_sql: null
+- id: A03
+  category: clarify
+  question: When did this company get approved?
+  expects: clarify
+  note: No company named. Must ask rather than pick one.
+  reference_sql: null

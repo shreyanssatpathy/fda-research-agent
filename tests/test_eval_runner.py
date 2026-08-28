@@ -21,7 +21,11 @@ pytestmark = pytest.mark.skipif(
     not DB_PATH.exists(), reason="database not built; run python -m fda_agent.ingest"
 )
 
-GOLDEN = Path(__file__).resolve().parents[1] / "evals" / "golden_v1.yaml"
+# The CURRENT set. Older frozen sets describe the data as it was when they were
+# frozen — v1-v3 predate PitchBook entity resolution, so their expected answers no
+# longer match today's database and must not be asserted against it. They are kept
+# as historical records, not as live checks.
+GOLDEN = Path(__file__).resolve().parents[1] / "evals" / "golden_v4.yaml"
 CASES = [c for c in yaml.safe_load(GOLDEN.read_text())["cases"] if c.get("reference_sql")]
 
 
@@ -77,7 +81,13 @@ def test_sample_ids_all_exist_in_the_frozen_set():
 
 
 def test_sample_covers_answerable_and_unanswerable():
-    """A sample of only answerable cases would hide the refusal failures."""
+    """A sample of only answerable cases would hide the refusal failures.
+
+    v1 used one bucket ("refusal_or_clarification"); v2 onward state the expected
+    action per case, so the sample must span answers and at least two kinds of
+    decline.
+    """
     by_id = {c["id"]: c for c in yaml.safe_load(GOLDEN.read_text())["cases"]}
     kinds = {by_id[i]["expects"] for i in SAMPLE_IDS}
-    assert kinds == {"answer", "refusal_or_clarification"}
+    assert "answer" in kinds
+    assert len(kinds - {"answer"}) >= 2, f"sample declines too narrow: {kinds}"

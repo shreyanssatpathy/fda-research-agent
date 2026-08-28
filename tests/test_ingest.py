@@ -147,8 +147,9 @@ def test_transform_rejects_missing_columns():
 def test_company_name_is_a_function_of_applicant(rows):
     """One applicant string must yield one company name.
 
-    Only the three applicants where the authoritative pass contradicts itself are
-    permitted to remain split; anything else is a regression.
+    Only SAMSUNG ELECTRONICS remains split, and legitimately: PitchBook holds
+    Samsung Electronics and Samsung Medison as different companies, so the one
+    applicant string really does span two firms. Anything else is a regression.
     """
     counts = rows.groupby("applicant_raw")["company_name"].nunique()
     split = set(counts[counts > 1].index)
@@ -194,3 +195,96 @@ def test_resolver_leaves_self_contradicting_source_alone():
     out, unresolved = resolve_company_names(df)
     assert unresolved == ["A CO"]
     assert set(out["company_name"]) == {"A", "B"}
+
+
+
+# --- identity resolution via the PitchBook bridge (2026-08-27) ----------------------
+
+
+def test_bridge_merged_split_companies(rows):
+    """Names the FDA data could not tell apart, resolved by external evidence.
+
+    `Ischema View` / `Ischemaview` and `Bay Labs` / `Caption Health` are one
+    company each. Nothing inside the FDA extract distinguishes those from two
+    genuinely different firms — the PitchBook company ID does.
+    """
+    names = set(rows["company_name"])
+    for gone in ("Ischemaview", "Caption Health", "Iterative Scopes", "Software Nemotec",
+                 "Aiq Solutions", "Corvista Health", "Medicrea International"):
+        assert gone not in names, f"{gone} should have been merged away"
+
+
+def test_merged_company_keeps_the_most_common_fda_spelling(rows):
+    """Not PitchBook's current name — users type what appears in FDA filings, and
+    contract rule 10 matches against this column."""
+    assert "Ischema View" in set(rows["company_name"])
+    assert "RapidAI" not in set(rows["company_name"])
+    assert (rows["company_name"] == "Ischema View").sum() == 20
+
+
+def test_parent_subsidiary_rollups_are_not_merged(rows):
+    """GE and Fujifilm subsidiaries file separately; collapsing them is a corporate
+    hierarchy decision, not a name-variant fix. Pending owner ruling."""
+    names = set(rows["company_name"])
+    assert {"GE Healthcare", "Ge Hangwei Medical Systems"} <= names
+    assert {"Fujifilm", "Fujifilm Healthcare"} <= names
+
+
+def test_bridge_coverage_is_recorded(rows):
+    assert rows["pb_company_id"].notna().sum() == 1359
+    assert rows["pb_company_id"].isna().sum() == 8
+
+
+
+def test_tie_break_prefers_pitchbooks_spelling():
+    """When two spellings appear equally often, PitchBook's current name decides.
+
+    Breaking ties by whichever pandas saw first picked `Corvista Health` over
+    `CorVista Health` and `Software Nemotec` over `Nemotec`.
+    """
+    import pandas as pd
+
+    from fda_agent.ingest import _pick_canonical
+
+    names = pd.Series(["Corvista Health", "CorVista Health"])
+    assert _pick_canonical(names, "CorVista Health") == "CorVista Health"
+    assert _pick_canonical(names, None) == "CorVista Health"  # alphabetical fallback
+
+
+def test_frequency_beats_the_tie_break():
+    """A clear majority spelling wins even if PitchBook calls the company
+    something else — most filings use it, so it is what people will search."""
+    import pandas as pd
+
+    from fda_agent.ingest import _pick_canonical
+
+    names = pd.Series(["Bay Labs"] * 4 + ["Caption Health"] * 2)
+    assert _pick_canonical(names, "Caption Care") == "Bay Labs"
+
+
+def test_rebuilding_fda_preserves_pitchbook_tables():
+    """The FDA loader must not delete the database file.
+
+    It used to, which silently destroyed pb_deals, pb_companies and
+    fda_pb_bridge on every rebuild. The PitchBook tests skip when their tables
+    are missing, so the damage surfaced as *skipped* tests rather than failures —
+    the quietest possible way to lose data.
+    """
+    with connect() as con:
+        tables = {
+            r[0]
+            for r in con.execute(
+                "SELECT table_name FROM information_schema.tables"
+            ).fetchall()
+        }
+    assert {"fda_510k", "pb_deals", "pb_companies", "fda_pb_bridge"} <= tables
+
+
+def test_fda_rebuild_keeps_pitchbook_metadata():
+    """pb_* metadata rows belong to the other loader and must survive."""
+    with connect() as con:
+        keys = {
+            r[0] for r in con.execute("SELECT key FROM ingest_metadata").fetchall()
+        }
+    assert any(k.startswith("pb_") for k in keys)
+    assert "schema_version" in keys

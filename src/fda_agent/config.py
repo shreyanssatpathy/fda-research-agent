@@ -44,8 +44,11 @@ SOURCE_PRECEDENCE = (
 # disagrees with itself. Awaiting owner ruling; see
 # docs/open-questions/company-mapping.md. The load asserts this set exactly, so a
 # new ambiguity fails the build instead of passing silently.
+# Updated 2026-08-27: the PitchBook bridge resolved ITERATIVE SCOPES and SOFTWARE
+# NEMOTEC (both merged — same PitchBook company). Samsung remains, and correctly
+# so: PitchBook holds Samsung Electronics (59366-98) and Samsung Medison
+# (51387-94) as different companies, so one applicant string legitimately spans
+# two firms.
 KNOWN_UNRESOLVED_APPLICANTS = frozenset({
-    "ITERATIVE SCOPES, INC.",
     "SAMSUNG ELECTRONICS CO., LTD.",
-    "SOFTWARE NEMOTEC S.L.",
 })

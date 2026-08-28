@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,7 @@ import pandas as pd
 
 from fda_agent.config import (
     DB_PATH,
+    PB_RAW_DIR,
     KNOWN_UNRESOLVED_APPLICANTS,
     RAW_FDA_DIR,
     SCHEMA_VERSION,
@@ -124,6 +126,107 @@ def resolve_company_names(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     return df, unresolved
 
 
+# PitchBook company IDs that roll several *distinct legal filers* up to a parent.
+# Excluded from the merge: GE Healthcare and its subsidiaries file separately, as
+# do Fujifilm and Fujifilm Healthcare, and collapsing them is a corporate-hierarchy
+# decision rather than a name-variant fix. Pending owner ruling — see
+# docs/open-questions/company-mapping.md.
+ROLLUP_COMPANY_IDS = frozenset({"18862-03", "11951-47"})
+
+
+def _pick_canonical(names: pd.Series, pb_name: str | None) -> str:
+    """Choose the surviving spelling for a merged company.
+
+    Frequency first — the spelling most filings use is the one people recognise.
+    Ties are common though (two variants, one clearance each), and breaking them
+    by whichever pandas saw first produced bad winners: `Corvista Health` over
+    `CorVista Health`, and the stale `Bay Labs` over `Caption Health`.
+
+    So ties fall back to PitchBook's current company name, which is independent
+    evidence of what the company calls itself now, and finally to alphabetical
+    order so the result is deterministic.
+    """
+    counts = names.value_counts()
+    top = counts.max()
+    candidates = sorted(counts[counts == top].index)
+    if len(candidates) == 1:
+        return candidates[0]
+
+    if pb_name:
+        norm = lambda s: "".join(ch for ch in str(s).lower() if ch.isalnum())
+        target = norm(pb_name)
+        exact = [c for c in candidates if norm(c) == target]
+        if exact:
+            return exact[0]
+        scored = sorted(
+            candidates,
+            key=lambda c: (-len(os.path.commonprefix([norm(c), target])), c),
+        )
+        return scored[0]
+    return candidates[0]
+
+
+def resolve_company_identity(df: pd.DataFrame) -> tuple[pd.DataFrame, list[dict]]:
+    """Merge FDA company names that the PitchBook bridge proves are one company.
+
+    The precedence rule fixed applicants that mapped to several names. It could not
+    fix the reverse: several *different* applicant strings that are in fact the same
+    company — `Ischema View` and `Ischemaview`, `Bay Labs` and `Caption Health`.
+    Nothing inside the FDA data distinguishes those from two genuinely different
+    firms.
+
+    PitchBook company IDs are independent evidence of entity identity, so where the
+    bridge assigns one ID to several FDA names, they are one company.
+
+    The surviving name is the **most frequent FDA spelling**, not PitchBook's
+    current name: users type what appears in FDA filings, and contract rule 10
+    matches against this column. Renaming `Ischema View` to `RapidAI` would merge
+    the rows correctly and then make them unfindable.
+
+    Returns the frame plus a record of every merge performed.
+    """
+    bridge_path = PB_RAW_DIR / "fda-pb-mapping.xlsx"
+    company_path = PB_RAW_DIR / "pitchbook_company_level.xlsx"
+    if not bridge_path.exists():
+        df["pb_company_id"] = pd.Series([pd.NA] * len(df), dtype="string")
+        return df, []
+
+    bridge = pd.read_excel(bridge_path, sheet_name="Sheet1")
+    bridge.columns = ["regnumber", "pb_company_id"]
+    bridge = bridge.dropna(subset=["pb_company_id"]).drop_duplicates("regnumber")
+    bridge["regnumber"] = bridge["regnumber"].astype("string").str.strip()
+    bridge["pb_company_id"] = bridge["pb_company_id"].astype("string").str.strip()
+
+    df = df.merge(bridge, on="regnumber", how="left")
+
+    pb_names: dict[str, str] = {}
+    if company_path.exists():
+        comp = pd.read_excel(company_path, sheet_name="Sheet1")
+        comp = comp.dropna(subset=["Company ID"]).drop_duplicates("Company ID")
+        pb_names = dict(
+            zip(comp["Company ID"].astype(str).str.strip(), comp["Companies"].astype(str))
+        )
+
+    merges: list[dict] = []
+    grouped = df.dropna(subset=["pb_company_id"]).groupby("pb_company_id")
+    for pb_id, rows in grouped:
+        names = rows["company_name"].unique()
+        if len(names) < 2 or pb_id in ROLLUP_COMPANY_IDS:
+            continue
+        winner = _pick_canonical(rows["company_name"], pb_names.get(pb_id))
+        merges.append(
+            {
+                "pb_company_id": pb_id,
+                "canonical": winner,
+                "merged": sorted(n for n in names if n != winner),
+                "rows": int(len(rows)),
+            }
+        )
+        df.loc[df["pb_company_id"] == pb_id, "company_name"] = winner
+
+    return df, merges
+
+
 def transform(df: pd.DataFrame) -> pd.DataFrame:
     """Full-file frame -> the V1 510(k) table."""
     missing = set(COLUMN_MAP) - set(df.columns)
@@ -143,15 +246,25 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
         out[col] = out[col].astype("string").str.strip()
 
     out = out.sort_values("regnumber").reset_index(drop=True)
-    out, unresolved = resolve_company_names(out)
+    out, _ = resolve_company_names(out)
+    out, merges = resolve_company_identity(out)
+    out.attrs["identity_merges"] = merges
+
+    # Evaluate the guard AFTER both passes. Precedence cannot settle every case on
+    # its own — ITERATIVE SCOPES and SOFTWARE NEMOTEC are settled by the bridge in
+    # the step above — so checking earlier would fail on ambiguities that the very
+    # next line resolves.
+    still_split = out.groupby("applicant_raw")["company_name"].nunique()
+    unresolved = sorted(still_split[still_split > 1].index)
 
     unexpected = set(unresolved) - KNOWN_UNRESOLVED_APPLICANTS
     if unexpected:
         raise ValueError(
-            "new company-name ambiguity the precedence rule cannot settle: "
-            f"{sorted(unexpected)} — rule on it in docs/open-questions/company-mapping.md"
+            "company-name ambiguity that neither precedence nor the PitchBook "
+            f"bridge can settle: {sorted(unexpected)} — rule on it in "
+            "docs/open-questions/company-mapping.md"
         )
-    out.attrs["unresolved_applicants"] = sorted(unresolved)
+    out.attrs["unresolved_applicants"] = unresolved
     return out
 
 
@@ -197,15 +310,23 @@ def load(source: Path, db_path: Path = DB_PATH, *, echo: bool = True) -> dict:
         "decision_date_min": str(df["decision_date"].min()),
         "decision_date_max": str(df["decision_date"].max()),
         "distinct_companies": int(df["company_name"].nunique()),
+        "identity_merges": len(df.attrs.get("identity_merges", [])),
+        "bridged_clearances": int(df["pb_company_id"].notna().sum()),
         "unresolved_applicants": ";".join(df.attrs.get("unresolved_applicants", [])) or "none",
     }
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    if db_path.exists():
-        db_path.unlink()
 
+    # Replace this loader's own tables only. Deleting the database file would take
+    # the PitchBook tables with it, and because their tests skip when the tables
+    # are absent, the loss would show up as skipped tests rather than failures.
     con = duckdb.connect(str(db_path))
     try:
+        con.execute("DROP TABLE IF EXISTS fda_510k")
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS ingest_metadata (key TEXT, value TEXT)"
+        )
+        con.execute("DELETE FROM ingest_metadata WHERE key NOT LIKE 'pb_%'")
         con.register("staged", df)
         # Cast explicitly. A bare CREATE AS SELECT infers VARCHAR for the date
         # columns, which silently breaks every date function in generated SQL.
@@ -214,7 +335,6 @@ def load(source: Path, db_path: Path = DB_PATH, *, echo: bool = True) -> dict:
             for c in df.columns
         )
         con.execute(f"CREATE TABLE fda_510k AS SELECT {cols} FROM staged")
-        con.execute("CREATE TABLE ingest_metadata (key TEXT, value TEXT)")
         con.executemany(
             "INSERT INTO ingest_metadata VALUES (?, ?)",
             [(k, str(v)) for k, v in meta.items()],

@@ -22,17 +22,52 @@ ming-mapping > manual_review > pre-existing > cleaning_script > AI_suggested
 This settled **13 of the 16** cases and is enforced in the loader, so the class
 cannot recur silently. Distinct companies went 485 -> 473.
 
-### Still open — the rule cannot settle these (3 applicants)
+### RESOLVED 2026-08-27 by the PitchBook bridge
 
-`ming-mapping` returns **two different names for the same applicant**, so there is
-no higher authority to defer to. The loader leaves these split and reports them;
-a fourth case appearing fails the build.
+All three were settled by external evidence rather than judgment. PitchBook
+company IDs are independent proof of entity identity:
 
-| applicant | ming-mapping returns | decision |
+| applicant | PitchBook IDs | verdict |
 |---|---|---|
-| `ITERATIVE SCOPES, INC.` | `Iterative Health` (2) / `Iterative Scopes` (2) | |
-| `SAMSUNG ELECTRONICS CO., LTD.` | `Samsung` (1) / `Samsung Medison` (1) | |
-| `SOFTWARE NEMOTEC S.L.` | `Nemotec` (1) / `Software Nemotec` (1) | |
+| `ITERATIVE SCOPES, INC.` | both `231656-59` | **same company** — merged |
+| `SOFTWARE NEMOTEC S.L.` | both `140027-05` | **same company** — merged |
+| `SAMSUNG ELECTRONICS CO., LTD.` | `59366-98` vs `51387-94` | **different companies** — stays split, correctly |
+
+Samsung remains the one applicant string spanning two companies, and that is now
+understood rather than unresolved: Samsung Electronics and Samsung Medison are
+separate filers.
+
+**Suspected bridge defect, flagged not fixed.** Both Samsung rows are filed by
+`SAMSUNG ELECTRONICS CO., LTD.`, but the bridge sends K230292 — "Samsung ECG
+Monitor Application with Irregular Heart Rhythm Notification", a Galaxy Watch
+feature — to Samsung *Medison*, an ultrasound company. The other row (K201560,
+Auto Lung Nodule Detection) goes to Samsung Electronics. K230292 looks
+misattributed. Owner decision required; the loader does not second-guess the
+bridge.
+
+### Part B superseded: 13 merges performed
+
+The bridge resolved 13 of the Part B pairs, including cases the precedence rule
+structurally could not reach — precedence fixes one applicant mapping to several
+names, but `Ischema View` and `Ischemaview` are *different* applicant strings, and
+nothing inside the FDA data distinguishes that from two genuinely different firms.
+
+Surviving spelling is the most frequent FDA one; ties break toward PitchBook's
+current name, then alphabetically. Distinct companies: 473 → **459**.
+
+### Still open: two parent/subsidiary rollups
+
+Not merged, because collapsing them is a corporate-hierarchy decision rather than
+a name-variant fix — the standing question from the original Part B.
+
+| PitchBook parent | FDA filers | clearances |
+|---|---|---|
+| GE HealthCare Technologies | `GE Healthcare` / `Ge Hangwei Medical Systems` / `Ge Medical Systems Ultrasound And Primary Care Diagnostic` | 95 / 2 / 1 |
+| FujiFilm | `Fujifilm` / `Fujifilm Healthcare` | 6 / 4 |
+
+Merging would take GE Healthcare to 98 clearances and Fujifilm to 10, and would
+change the top-10 company ranking. Held in `ROLLUP_COMPANY_IDS`
+(`src/fda_agent/ingest.py`) pending a ruling.
 
 ### Two outcomes of the rule worth a second look
 

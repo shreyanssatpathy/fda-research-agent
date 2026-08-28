@@ -19,6 +19,7 @@ SETS = [
     ("golden_v1.yaml", "golden_v1.sha256"),
     ("golden_v2.yaml", "golden_v2.sha256"),
     ("golden_v3.yaml", "golden_v3.sha256"),
+    ("golden_v4.yaml", "golden_v4.sha256"),
 ]
 
 
@@ -136,3 +137,31 @@ def test_v3_preserves_v2_corrections():
     """v3 builds on v2; the nine earlier corrections must survive."""
     v3 = yaml.safe_load((EVAL_DIR / "golden_v3.yaml").read_text())
     assert len([c for c in v3["cases"] if c.get("changed_in_v2")]) == 9
+
+
+# --- v4 ---------------------------------------------------------------------------
+
+
+def test_v4_changed_no_reference_sql():
+    """v4 is a re-execution, not a re-authoring.
+
+    Entity resolution changed the data, not the questions or the queries. If a
+    reference query ever differs from v3, that is a re-authoring and needs the
+    same justification discipline v2 and v3 carried.
+    """
+    v3 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_v3.yaml").read_text())["cases"]}
+    v4 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_v4.yaml").read_text())["cases"]}
+    for cid, case in v4.items():
+        assert case["reference_sql"] == v3[cid]["reference_sql"], cid
+        assert case["question"] == v3[cid]["question"], cid
+
+
+def test_v4_records_which_answers_moved():
+    v4 = yaml.safe_load((EVAL_DIR / "golden_v4.yaml").read_text())
+    moved = {c["id"] for c in v4["cases"] if c.get("changed_in_v4")}
+    assert moved == {"C02", "M01", "M02", "M04", "M05", "F03", "D05", "G01"}
+
+
+def test_v4_reflects_the_merged_company_count():
+    v4 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_v4.yaml").read_text())["cases"]}
+    assert v4["C02"]["expected_answer"]["rows"][0]["n"] == 459
