@@ -7,7 +7,7 @@ Profiled 2026-08-27. Nothing has been ingested yet; this is the go/no-go read.
 |---|---|---|
 | `fda-pb-mapping.xlsx` | 1,483 × 2 | one row per FDA submission |
 | `pitchbook_company_level.xlsx` | 1,483 × 168 | **denormalised to FDA row grain** |
-| `pitchbook_deal_level.xlsx` | 920 × 116 | **one row per deal** |
+| `pb_deals_latest.xlsx` | 3,385 × 184 | **one row per deal** |
 
 ## The bridge is good — better than the FDA name mapping was
 
@@ -39,60 +39,66 @@ and they resolve 15 FDA name pairs our precedence rule could not — including
 scheduled after PitchBook integration; the bridge delivers a large part of it up
 front.
 
-## The blocking problem: a four-year temporal gap
+## Temporal coverage is fine — superseded finding
 
-**The deal export was downloaded 2021-12-31. The last deal is 2021-12-22. FDA data
-runs to 2025-12-30.**
+An earlier export (`pitchbook_deal_level.xlsx`, downloaded 2021-12-31) ended at
+2021-12-22 and left 68% of clearances outside the funding window. **It was the
+wrong file and has been replaced.** Recorded because the check is the point, not
+the outcome: an export's download date is a coverage boundary, and it has to be
+read off the file rather than assumed.
+
+The current export runs to **2026-08-07**, past the FDA extract's 2025-12-30.
 
 | | |
 |---|---|
-| Clearances after the last deal date | **933 of 1,367 (68.3%)** |
-| Companies whose *first* clearance is after it | **255 of 473 (53.9%)** |
+| Clearances after the last deal date | **0** |
+| FDA companies with at least one deal | **438 of 466 (94%)** |
+| Companies with a deal *before* their first clearance | **398 of 449 (89%)** |
 
-The plan's flagship Phase 2 questions — "which companies raised Series B before
-their first FDA approval", "median capital raised before first clearance" — are
-**unanswerable for the majority of the dataset**, and would be answered wrongly
-rather than refused if this is not handled explicitly.
+The plan's flagship Phase 2 questions — capital raised before first clearance, and
+funding stage at time of clearance — are answerable for the large majority of the
+dataset. Funding data is *ahead* of FDA data, which is the right direction: no
+clearance sits outside the funding window.
 
-A company cleared in 2024 will look like it raised nothing after 2021. That is the
-2026 coverage cliff again, but worse: it is *asymmetric* (one source is current,
-the other is stale) and therefore invisible in any single result.
+The 28 mapped companies with no deals still need the "missing is not zero" rule —
+absence of funding data is not evidence of no funding.
 
-**This must be enforced in the contract, not documented and hoped for.** Either
-refresh the PitchBook export, or scope Phase 2 questions to clearances on or
-before 2021-12-22 and refuse the rest.
+## Deal grain is clean — no fan-out
 
-## Other findings
-
-### Deal grain is clean — no fan-out
-
-920 rows, 919 distinct `Deal ID`, zero duplicates. **One row per deal, not one row
-per investor per round.** `SUM(Deal Size)` per company is therefore safe. This was
-the single biggest risk going in and it is not present.
-
-### Deal coverage is thin
-
-Only **164 of 466 mapped FDA companies (35%)** have any deal. For the other 65%,
-absence of funding data is not absence of funding — the same "missing is not zero"
-rule that governs the 2026 boundary.
+3,385 rows, 3,385 distinct `Deal ID`, zero duplicates. **One row per deal, not one
+row per investor per round.** `SUM(Deal Size)` per company is therefore safe. This
+was the single biggest risk going in and it is not present in either export.
 
 ### Mixed currencies
 
-`Native Currency of Deal`: USD 658, EUR 105, GBP 49, CAD 41, CNY 18, and others.
+`Native Currency of Deal`: USD 2,254, EUR 395, GBP 176, KRW 108, CAD 101, CNY 86.
 **Summing `Deal Size` across currencies without conversion is wrong.** Either
 restrict to USD, or find the normalised column before any aggregate is allowed.
 
-### `Deal Size` is 25% null
+### `Deal Size` is 34% null — but the nulls are concentrated
 
-228 of 920. Undisclosed deals. A sum silently omits them, so any "total raised"
-figure is a floor, not a total, and must say so.
+1,143 of 3,385. Crucially they are not spread evenly:
+
+| deal type | rows | % null size |
+|---|---|---|
+| Accelerator/Incubator | 588 | **82%** |
+| Later Stage VC | 651 | 17% |
+| Early Stage VC | 373 | 17% |
+| Seed Round | 218 | 14% |
+| Grant | 376 | 3% |
+
+Excluding accelerator and incubator rows from "funding raised" both matches what
+the question means and removes most of the missing-value problem at once. The
+remaining ~17% on VC rounds are genuinely undisclosed, so any total is a **floor,
+not a total**, and must say so.
 
 ### "Funding" needs defining
 
-`Deal Type` spans Later Stage VC (171), Early Stage VC (153), **Grant (124)**,
-Accelerator/Incubator (88), PIPE (66), Seed (59), Angel (40), M&A (36), Debt (34),
-IPO (32). Summing all of them conflates an NIH grant, a debt facility, and an IPO
-with venture funding. The contract must define which types count.
+`Deal Type` spans Later Stage VC (651), Accelerator/Incubator (588), **Grant
+(376)**, Early Stage VC (373), Seed (218), PIPE (174), Secondary (129), M&A (116),
+IPO (91), Debt (82), PE Growth (74), Angel (73). Summing all of them conflates an
+NIH grant, a secondary transaction, a debt facility and an IPO with venture
+funding. The contract must define which types count as "raised".
 
 ### The company file is denormalised
 
@@ -103,8 +109,8 @@ have a null Company ID.
 
 ### Pre-modern deal dates
 
-Earliest deal is Philips, 1912-01-01 (an IPO with a null size); also Edwards
-Lifesciences 1966 and Medtronic 1973. These are legitimate for large incumbents but
+Earliest deal is 1892. Large incumbents (Philips, Medtronic, Edwards) carry
+IPO and M&A rows from long before the AI era. These are legitimate for large incumbents but
 will distort any "time from founding to first raise" analysis. Not errors — just
 not comparable to a 2019 seed round.
 
