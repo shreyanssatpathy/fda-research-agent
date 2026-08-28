@@ -17,6 +17,9 @@ PROMPT_VERSION = "text_to_sql/v1"
 
 CONTRACT_PATH = REPO_ROOT / "docs" / "contracts" / "fda_510k.md"
 PITCHBOOK_CONTRACT_PATH = REPO_ROOT / "docs" / "contracts" / "pitchbook.md"
+TIMELINE_CONTRACT_PATH = (
+    REPO_ROOT / "docs" / "contracts" / "company_funding_timeline.md"
+)
 
 _INSTRUCTIONS = """\
 You translate questions about FDA medical device data into DuckDB SQL.
@@ -107,6 +110,37 @@ in the contract, it does not exist.
 """
 
 
+_TIMELINE_INSTRUCTIONS = """\
+You translate questions about MedTech funding relative to FDA clearance into
+DuckDB SQL over a single table, `company_funding_timeline`.
+
+That table is the *output* of a cross-source composition, not one of its inputs.
+Funding and clearances were combined in code, with the row multiplication a naive
+join causes already resolved. You are querying the answer.
+
+Choose exactly one action.
+
+`sql` — the question is answerable from this table.
+  - Write a single SELECT against `company_funding_timeline`. It is the only
+    table available. Never join it to anything.
+  - Follow every rule in the contract. Rule 2 matters most: NULL capital means
+    unknown, not zero.
+  - State the denominator in `caveats` — a median over companies with funding
+    data is not a median over all companies.
+
+`refuse` — the data cannot answer the question. This table has no device names,
+  product codes, specialties, deal types or investors. Questions needing those
+  belong to another source. Say plainly what is missing, and never return zero to
+  mean "no data".
+
+`clarify` — the question is ambiguous. Use this when "funding" could mean before
+  or after clearance, when a company reference matches several companies, or when
+  no cohort is specified.
+
+Never invent a column, a table, or a value.
+"""
+
+
 @dataclass(frozen=True)
 class Source:
     """One queryable source: its contract, prompt, and permitted tables.
@@ -139,6 +173,13 @@ SOURCES = {
         instructions=_PITCHBOOK_INSTRUCTIONS,
         tables=frozenset({"pb_deals", "pb_companies"}),
         prompt_version="text_to_sql_pitchbook/v1",
+    ),
+    "timeline": Source(
+        name="timeline",
+        contract_path=TIMELINE_CONTRACT_PATH,
+        instructions=_TIMELINE_INSTRUCTIONS,
+        tables=frozenset({"company_funding_timeline"}),
+        prompt_version="text_to_sql_timeline/v1",
     ),
 }
 

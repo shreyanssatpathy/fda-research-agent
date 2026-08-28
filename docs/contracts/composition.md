@@ -124,11 +124,37 @@ What this unlocks — the plan's §16 end-state query is now one filter:
 > 289 companies have venture funding before their first AI clearance.
 > Median $7.8m, mean $40.8m. **241 raised under $50m.**
 
+## The router
+
+`research(question)` is the single entry point. The model is asked *what kind of
+question this is*, never which tables to use — the route determines that, and the
+guard enforces it.
+
+| route | handler | tables |
+|---|---|---|
+| `fda` | text-to-SQL | `fda_510k` |
+| `pitchbook` | text-to-SQL | `pb_deals`, `pb_companies` |
+| `timeline` | text-to-SQL | `company_funding_timeline` |
+| `profile` | deterministic composition | both, joined in code |
+| `refuse` | — | none |
+
+**The three SQL sources hold disjoint table sets**, asserted by a test, so a route
+is a hard boundary rather than a suggestion. A `timeline` query cannot re-join
+`fda_510k` and reintroduce the fan-out the table exists to remove; the guard
+rejects it.
+
+`profile` is not a SQL route. "Tell me about Aidoc" wants every fact about one
+entity from every source — assembly, not a query — so it runs
+`company_profile()` and generates no SQL at all.
+
+Routing is content-hash cached like every other model call, so a repeated question
+costs nothing and consumes no budget.
+
 ## Not yet built
 
-- **A router.** Callers choose `company_profile()` or
-  `funding_vs_first_clearance()` explicitly; nothing yet decides which sources a
-  free-text question needs.
-- **Narrative synthesis.** Evidence is assembled but not written up.
+- **Narrative synthesis.** Evidence is assembled but not written up; `profile`
+  currently returns a one-line summary and the fact list.
 - **Post-clearance trajectory questions** beyond the before/after split — e.g.
   time from clearance to next round.
+- **Multi-route questions.** One question resolves to one route; a question
+  genuinely needing two would need decomposition.

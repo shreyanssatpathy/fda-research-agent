@@ -245,3 +245,28 @@ def funding_vs_first_clearance(db_path: Path = DB_PATH):
     """
     with connect(db_path) as con:
         return con.execute(sql).df()
+
+
+def materialize_timeline(db_path: Path = DB_PATH) -> int:
+    """Persist the cohort frame as `company_funding_timeline`.
+
+    Materialising it is what makes cross-source questions safe to generate SQL
+    for. The fan-out has already been resolved here, once, by code with tests
+    around it — so the model queries a single table and has no join available to
+    get wrong. It is the composition layer's output, not another thing to join.
+    """
+    import duckdb
+
+    df = funding_vs_first_clearance(db_path)
+    con = duckdb.connect(str(db_path))
+    try:
+        con.register("staged", df)
+        con.execute("DROP TABLE IF EXISTS company_funding_timeline")
+        con.execute(
+            "CREATE TABLE company_funding_timeline AS "
+            "SELECT * EXCLUDE (first_clearance), "
+            "       CAST(first_clearance AS DATE) AS first_clearance FROM staged"
+        )
+    finally:
+        con.close()
+    return len(df)
