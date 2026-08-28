@@ -279,3 +279,51 @@ def test_undated_rounds_are_excluded_from_before_and_after(cohort):
     """A deal with no date cannot be called before or after anything."""
     assert (cohort["undated_rounds"] >= 0).all()
     assert cohort["undated_rounds"].sum() > 0, "expected some undated rounds in the data"
+
+
+# --- undated rounds must stay visible ----------------------------------------------
+
+
+def test_undated_rounds_are_counted_not_dropped(cohort):
+    """Capital that cannot be placed in time must remain visible.
+
+    26 rounds worth $211.1m belong to FDA companies but have no date. They are
+    excluded from before and after — correctly, since a deal with no date cannot
+    be called either — but silently dropping them would understate every
+    pre-clearance figure with nothing to show for it.
+    """
+    with connect() as con:
+        truth = con.execute(
+            """
+            SELECT count(*) FROM pb_deals d
+            WHERE d.is_venture_round AND d.deal_date IS NULL
+              AND d.company_id IN (SELECT DISTINCT pb_company_id FROM fda_510k
+                                   WHERE pb_company_id IS NOT NULL)
+            """
+        ).fetchone()[0]
+    assert cohort["undated_rounds"].sum() == truth
+    assert (cohort["undated_rounds"] > 0).sum() == 25
+
+
+def test_profile_reports_undated_rounds_as_a_gap():
+    """A company whose funding cannot be fully placed in time must say so."""
+    from fda_agent.compose import funding_vs_first_clearance
+
+    affected = funding_vs_first_clearance()
+    name = affected[affected["undated_rounds"] > 0]["company_name"].iloc[0]
+    profile = company_profile(name)
+    topics = {g.topic for g in profile.evidence.gaps}
+    assert "funding_dates" in topics
+    reason = next(g.reason for g in profile.evidence.gaps if g.topic == "funding_dates")
+    assert "excluded from any before/after comparison" in reason
+
+
+def test_undated_facts_carry_no_guessed_date():
+    from fda_agent.compose import funding_vs_first_clearance
+
+    affected = funding_vs_first_clearance()
+    name = affected[affected["undated_rounds"] > 0]["company_name"].iloc[0]
+    profile = company_profile(name)
+    undated = [f for f in profile.evidence.of_type("FUNDING_ROUND") if f.date is None]
+    assert undated, "expected at least one undated round"
+    assert all(f.source_id for f in undated), "still sourced, just undated"

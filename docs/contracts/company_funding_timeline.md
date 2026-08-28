@@ -30,9 +30,22 @@ answer, not the ingredients** — there is no join here to get wrong.
 3. **Say how many companies a statistic covers.** "Median capital raised before
    first clearance" is a statistic about the 289 companies with funding data, not
    about all 459. State the denominator.
-4. **Undated rounds are in neither before nor after.** `undated_rounds` counts
-   deals with no date, excluded from both sides because a deal that cannot be
+4. **Undated rounds are in neither before nor after, and any capital aggregate
+   must say how many are affected.** `undated_rounds` counts venture rounds with
+   no date. They are excluded from both buckets, because a deal that cannot be
    placed in time cannot be called "before" or "after".
+
+   This is not a footnote: **25 companies hold 26 undated rounds worth $211.1m
+   that no before/after figure includes.** (PitchBook holds 29 undated venture
+   rounds in total; 26 belong to companies that appear in the FDA data.) Their `capital_before_usd_m` is
+   therefore understated, and a median or mean over that column inherits the
+   understatement silently.
+
+   So any query aggregating `capital_before_usd_m` or `capital_after_usd_m`
+   **must** also select `sum(undated_rounds)` or
+   `count(*) FILTER (WHERE undated_rounds > 0)`, and the answer must state it.
+   Reporting a median of pre-clearance capital without noting how many companies
+   have unplaceable rounds presents an understated figure as a complete one.
 5. **This table has no device, product-code or deal-type detail.** Questions about
    what a company cleared, or which deal types it raised, need the FDA or
    PitchBook source instead — refuse rather than approximate.
