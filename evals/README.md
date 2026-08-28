@@ -202,3 +202,63 @@ clearance answer includes the date column) and G01 are the unstable ones.
 
 Treat a single run as an estimate. A one- or two-case delta is not a signal; re-run
 before concluding a change helped.
+
+
+---
+
+# `golden_v3.yaml` — 38 cases
+
+**Status: FROZEN 2026-08-27.** Supersedes v2. v1 and v2 retained unmodified; all
+three hashes are asserted, and a test checks every v3 question is still
+byte-identical to its v1 original.
+
+## What changed from v2 (3 cases)
+
+| id | change | reason |
+|---|---|---|
+| M01 | 4 columns → all 24 | Rule 14 changed to `SELECT *` (owner decision). v2 froze the superseded projection. |
+| D05 | 4 columns → all 24 | Same. |
+| G01 | counts clearances → counts distinct companies | The question's subject is companies; the v2 reference measured clearances. |
+
+A contract rule was also added and one extended:
+
+- **Rule 15** — summarise a distribution with the **median** unless the question
+  names a statistic. Review times are right-skewed, so the mean overstates what a
+  typical submission experiences. (T02 says "on average" and correctly stays `avg`.)
+- **Rule 7 extended** — a **superlative question returns the entity and the
+  measure**, not the entity alone. "Which company was earliest?" returns the name
+  *and the date*. This aligned F04 with G03, M02 and D01, which already did this.
+
+## Result: 37/38
+
+| category | v1 | v2 | v3 |
+|---|---|---|---|
+| count | 5/5 | 5/5 | 5/5 |
+| company | 5/5 | 5/5 | 5/5 |
+| first_clearance | 3/4 | 4/4 | 4/4 |
+| device | 3/6 | 6/6 | 6/6 |
+| time_series | 2/4 | 3/4 | 4/4 |
+| geography | 1/3 | 2/3 | 2/3 |
+| refuse / clarify | 9+1/12 | 12/12 | 12/12 |
+
+## G01: I corrected toward noise, and the next run proved it
+
+Worth recording as a caution against the exact discipline failure this process is
+designed to prevent.
+
+The v3 build script flagged, in advance, that correcting G01 "also happens to make
+a failing case pass" and that a reader might disagree. **The very next run took the
+opposite reading** — the model counted clearances (626) where the run I corrected
+against counted companies (222).
+
+So the correction was fitted to a single sample of an unstable case, not to a
+defect. The reference is now arguably no better than it was; the honest conclusion
+is that **the question is genuinely ambiguous** and neither reading is wrong.
+
+The v3 reference is left as-is rather than reverted — flipping it back would be
+chasing the same noise in the other direction. What changes is the reading of the
+score: **37/38 with the failing case rotating between F04 and G01 by run.** Treat
+the result as 37±1.
+
+*Lesson: flagging a fitting risk is not the same as avoiding it. On an unstable
+case, one run is not evidence — re-run before correcting, or leave it alone.*

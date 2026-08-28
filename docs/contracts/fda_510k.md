@@ -46,6 +46,11 @@ rules, not preferences — a correct number in the wrong shape is a failed answe
    `GROUP BY`, no company column, no supporting counts. Do not add context
    columns the question did not ask for; put context in the explanation instead.
 
+   **A superlative question is not a single-number question.** "Which company was
+   the earliest?", "which state has the most?" — return the entity *and* the value
+   that makes it the superlative: `company_name, min(decision_date)` or
+   `state, count(*)`. The entity alone omits the evidence for the claim.
+
    **This applies only when the question asks for a single number.** A question
    asking for a *breakdown* — "annually", "per year", "by specialty", "for each
    company" — asks for one row per group and must keep its `GROUP BY` and its
@@ -91,6 +96,15 @@ rules, not preferences — a correct number in the wrong shape is a failed answe
     This overrides the general preference for explicit column lists, which still
     applies everywhere else — aggregates, counts, and any question that names the
     columns it wants.
+
+15. **Summarise a distribution with the median, and say so.** When a question
+    asks about a typical duration or amount without naming a statistic — "how long
+    does review take?", "has review time gotten longer?" — use `median`, not
+    `avg`. Review times are right-skewed: a handful of very long reviews drag the
+    mean above what any typical submission experiences. Name the statistic in the
+    explanation so the reader knows which one they got.
+
+    When the question names a statistic ("average", "mean"), use that one.
 
 ## Matching a company name
 

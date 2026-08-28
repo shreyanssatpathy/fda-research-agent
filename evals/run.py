@@ -32,6 +32,7 @@ from fda_agent.text_to_sql import MissingCredentials, generate  # noqa: E402
 SETS = {
     "v1": Path(__file__).parent / "golden_v1.yaml",
     "v2": Path(__file__).parent / "golden_v2.yaml",
+    "v3": Path(__file__).parent / "golden_v3.yaml",
 }
 SAMPLE_IDS = ["C01", "M03", "F01", "T01", "D01", "R01", "R03", "A01"]
 
@@ -115,7 +116,7 @@ def evaluate_case(case: dict, *, budget: Budget) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--set", default="v2", choices=sorted(SETS), help="which golden set")
+    ap.add_argument("--set", default="v3", choices=sorted(SETS), help="which golden set")
     ap.add_argument("--full", action="store_true", help="run all cases (default: sample)")
     ap.add_argument("--ceiling", type=float, default=None, help="override spend ceiling")
     ap.add_argument("--out", type=Path, default=Path(__file__).parent / "results.json")

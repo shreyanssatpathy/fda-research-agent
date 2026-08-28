@@ -15,7 +15,11 @@ EVAL_DIR = Path(__file__).resolve().parents[1] / "evals"
 GOLDEN = EVAL_DIR / "golden_v1.yaml"
 DIGEST = EVAL_DIR / "golden_v1.sha256"
 
-SETS = [("golden_v1.yaml", "golden_v1.sha256"), ("golden_v2.yaml", "golden_v2.sha256")]
+SETS = [
+    ("golden_v1.yaml", "golden_v1.sha256"),
+    ("golden_v2.yaml", "golden_v2.sha256"),
+    ("golden_v3.yaml", "golden_v3.sha256"),
+]
 
 
 def test_golden_set_is_unmodified():
@@ -98,3 +102,37 @@ def test_v2_still_has_material_decline_coverage():
     v2 = yaml.safe_load((EVAL_DIR / "golden_v2.yaml").read_text())
     declines = [c for c in v2["cases"] if c["expects"] in ("refuse", "clarify", "decline")]
     assert len(declines) == 12
+
+
+# --- v3 ---------------------------------------------------------------------------
+
+
+def test_v3_questions_still_identical_to_v1():
+    """Three sets deep, the questions must still be the originals. Rewording to
+    suit the system at any point would break the whole comparison chain."""
+    v1 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_v1.yaml").read_text())["cases"]}
+    v3 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_v3.yaml").read_text())["cases"]}
+    assert set(v1) == set(v3)
+    for cid, case in v3.items():
+        assert case["question"] == v1[cid]["question"], cid
+
+
+def test_v3_corrections_cite_a_reason():
+    v3 = yaml.safe_load((EVAL_DIR / "golden_v3.yaml").read_text())
+    changed = [c for c in v3["cases"] if c.get("changed_in_v3")]
+    assert {c["id"] for c in changed} == {"M01", "D05", "G01"}
+    for case in changed:
+        assert len(case["changed_in_v3"]) > 20, case["id"]
+
+
+def test_v3_listings_carry_every_column():
+    """Rule 14: a clearance listing returns the whole record."""
+    v3 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_v3.yaml").read_text())["cases"]}
+    for cid in ("M01", "D05"):
+        assert len(v3[cid]["expected_answer"]["columns"]) == 24, cid
+
+
+def test_v3_preserves_v2_corrections():
+    """v3 builds on v2; the nine earlier corrections must survive."""
+    v3 = yaml.safe_load((EVAL_DIR / "golden_v3.yaml").read_text())
+    assert len([c for c in v3["cases"] if c.get("changed_in_v2")]) == 9
