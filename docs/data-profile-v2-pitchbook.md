@@ -199,4 +199,41 @@ The distinction that matters is whether money reaches the company:
 - **Arguable** — Grant (non-dilutive, real money in), IPO and PIPE (primary but
   public-market), Debt (money in, not equity).
 
-This needs an owner ruling before the PitchBook contract is written.
+## Resolved: "capital raised" = venture rounds only (owner ruling, 2026-08-27)
+
+`VENTURE_DEAL_TYPES` = Seed Round, Angel (individual), Early Stage VC, Later Stage
+VC, Accelerator/Incubator, PE Growth/Expansion. **1,222 of 1,964 deals,
+$24,714.8m.**
+
+Implemented as a **column (`is_venture_round`), not a filter.** The excluded rows
+are not junk — an acquisition or IPO is exactly what a research brief's corporate
+history needs — they simply are not fundraising. Deleting them would cost Phase 3
+real evidence to save a `WHERE` clause. The contract will require the flag for any
+"raised" question.
+
+### What the ruling changes
+
+Before, capital raised before first clearance:
+
+| company | raised |
+|---|---|
+| Apple | $297,625m |
+| Change Healthcare | $19,599m |
+| Stryker | $12,150m |
+
+After:
+
+| company | rounds | raised |
+|---|---|---|
+| Verily Life Sciences | 2 | $1,800.0m |
+| Tempus AI | 9 | $1,411.8m |
+| United-Imaging | 1 | $505.8m |
+| Butterfly Network | 3 | $390.8m |
+
+And the headline statistic the plan asks for becomes credible:
+
+> **287 companies have venture funding before their first AI clearance.
+> Median $7.7m, mean $40.9m.**
+
+The gap between median and mean is itself the finding — a long right tail, which
+is why the contract's rule 15 (median by default) matters here too.

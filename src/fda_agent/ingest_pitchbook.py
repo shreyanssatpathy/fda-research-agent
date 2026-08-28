@@ -43,6 +43,26 @@ QUALIFIED_FINANCING_STATUS = (
 # A Universe cell is a comma-joined set of labels; qualify on either token.
 QUALIFYING_UNIVERSE_TOKENS = ("Pre-venture", "Venture Capital")
 
+# Deal types that count as capital raised BY the company. Owner ruling 2026-08-27.
+#
+# Marked as a column rather than a filter. The excluded rows are not junk — an
+# acquisition or IPO is exactly what a research brief's corporate-history section
+# needs — they simply are not fundraising. Deleting them would cost Phase 3 real
+# evidence to save a WHERE clause.
+#
+# The line is whether money reaches the company. Share Repurchase, Dividend and
+# Leveraged Recapitalization, Secondary Transaction, Buyout/LBO and
+# Merger/Acquisition move money out of the company or between shareholders;
+# counting them as "raised" is the wrong sign, not an approximation.
+VENTURE_DEAL_TYPES = (
+    "Seed Round",
+    "Angel (individual)",
+    "Early Stage VC",
+    "Later Stage VC",
+    "Accelerator/Incubator",
+    "PE Growth/Expansion",
+)
+
 DEAL_COLUMNS = {
     "Deal ID": "deal_id",
     "Company ID": "company_id",
@@ -126,6 +146,8 @@ def clean_deals(raw: pd.DataFrame, companies: pd.DataFrame) -> tuple[pd.DataFram
 
     out = d[list(DEAL_COLUMNS)].rename(columns=DEAL_COLUMNS)
     out["deal_date"] = pd.to_datetime(out["deal_date"], errors="coerce").dt.date
+    out["is_venture_round"] = out["deal_type"].isin(VENTURE_DEAL_TYPES)
+    funnel["venture_rounds"] = int(out["is_venture_round"].sum())
     out = _strip_text_columns(out)
     return out.sort_values("deal_id").reset_index(drop=True), funnel
 
@@ -164,6 +186,10 @@ def validate(deals: pd.DataFrame, companies: pd.DataFrame, bridge: pd.DataFrame)
         raise ValueError("deal_status must be Completed after rule 2")
     if not deals["universe"].map(is_qualified_universe).all():
         raise ValueError("every deal must have a qualified universe after rule 3")
+
+    flagged = set(deals.loc[deals["is_venture_round"], "deal_type"].unique())
+    if not flagged <= set(VENTURE_DEAL_TYPES):
+        raise ValueError(f"is_venture_round set on non-venture types: {flagged}")
 
     if not companies["company_id"].is_unique:
         raise ValueError("company_id must be unique — the export is denormalised")
@@ -208,6 +234,10 @@ def load(
         "deals_excluded": funnel["raw"] - len(deals),
         "companies_loaded": len(companies),
         "companies_in_qualified_universe": int(companies["in_qualified_universe"].sum()),
+        "venture_rounds": int(deals["is_venture_round"].sum()),
+        "venture_capital_usd_m": round(
+            float(deals.loc[deals["is_venture_round"], "deal_size_usd_m"].sum()), 1
+        ),
         "bridge_rows": len(bridge),
         "deal_date_min": str(deals["deal_date"].min()),
         "deal_date_max": str(deals["deal_date"].max()),

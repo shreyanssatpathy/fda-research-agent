@@ -139,6 +139,8 @@ def test_validate_rejects_duplicate_deal_ids():
         "deal_size_usd_m": [1.0, 2.0],
         "deal_status": ["Completed", "Completed"],
         "universe": ["Venture Capital", "Venture Capital"],
+        "deal_type": ["Seed Round", "Seed Round"],
+        "is_venture_round": [True, True],
     })
     comps = pd.DataFrame({"company_id": ["C1"]})
     bridge = pd.DataFrame({"regnumber": ["K1"], "company_id": ["C1"]})
@@ -150,6 +152,7 @@ def test_validate_rejects_a_non_function_bridge():
     deals = pd.DataFrame({
         "deal_id": ["D1"], "company_id": ["C1"], "deal_size_usd_m": [1.0],
         "deal_status": ["Completed"], "universe": ["Venture Capital"],
+        "deal_type": ["Seed Round"], "is_venture_round": [True],
     })
     comps = pd.DataFrame({"company_id": ["C1"]})
     bridge = pd.DataFrame({"regnumber": ["K1", "K1"], "company_id": ["C1", "C2"]})
@@ -161,6 +164,7 @@ def test_validate_rejects_orphan_deals():
     deals = pd.DataFrame({
         "deal_id": ["D1"], "company_id": ["GHOST"], "deal_size_usd_m": [1.0],
         "deal_status": ["Completed"], "universe": ["Venture Capital"],
+        "deal_type": ["Seed Round"], "is_venture_round": [True],
     })
     comps = pd.DataFrame({"company_id": ["C1"]})
     bridge = pd.DataFrame({"regnumber": ["K1"], "company_id": ["C1"]})
@@ -188,3 +192,50 @@ def test_clean_companies_deduplicates_the_denormalised_export():
     assert len(out) == 2
     assert out.set_index("company_id").loc["C1", "in_qualified_universe"]
     assert not out.set_index("company_id").loc["C2", "in_qualified_universe"]
+
+
+# --- "capital raised" definition (owner ruling 2026-08-27) ---------------------------
+
+
+def test_venture_flag_covers_only_primary_equity_types(deals):
+    from fda_agent.ingest_pitchbook import VENTURE_DEAL_TYPES
+
+    flagged = set(deals.loc[deals["is_venture_round"], "deal_type"].unique())
+    assert flagged <= set(VENTURE_DEAL_TYPES)
+
+
+def test_money_out_deal_types_are_never_venture_rounds(deals):
+    """Share repurchases and recapitalisations move capital OUT of the company.
+
+    Counting them as 'raised' is the wrong sign, not an approximation — it is what
+    made Apple rank first at $297.6bn of capital 'raised' before its first
+    clearance.
+    """
+    wrong_sign = [
+        "Share Repurchase",
+        "Dividend Recapitalization",
+        "Leveraged Recapitalization",
+        "Secondary Transaction - Open Market",
+        "Secondary Transaction - Private",
+        "Buyout/LBO",
+        "Merger/Acquisition",
+    ]
+    assert not deals[deals["deal_type"].isin(wrong_sign)]["is_venture_round"].any()
+
+
+def test_non_venture_rows_are_retained_not_deleted(deals):
+    """Acquisitions and IPOs are evidence for corporate history, not junk.
+
+    They are flagged out of 'capital raised', not dropped, so a later research
+    brief can still say when a company was acquired.
+    """
+    assert (~deals["is_venture_round"]).sum() > 0
+    kept = set(deals.loc[~deals["is_venture_round"], "deal_type"])
+    assert {"Merger/Acquisition", "IPO"} <= kept
+
+
+def test_venture_capital_total_is_a_small_fraction_of_all_deal_flow(deals):
+    """Guards the headline finding: most capital in this table is not fundraising."""
+    total = deals["deal_size_usd_m"].sum()
+    venture = deals.loc[deals["is_venture_round"], "deal_size_usd_m"].sum()
+    assert venture / total < 0.10
