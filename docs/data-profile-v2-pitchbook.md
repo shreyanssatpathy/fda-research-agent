@@ -125,3 +125,78 @@ not comparable to a 2019 seed round.
 4. **Build and evaluate the PitchBook tool standalone** — its own eval cases, no
    joins.
 5. **Only then compose**, joining in code over `company_id`.
+
+
+---
+
+## Cleaning rules applied (owner, 2026-08-27)
+
+Implemented in `src/fda_agent/ingest_pitchbook.py`, enforced by tests.
+
+| # | rule | rows after |
+|---|---|---|
+| — | raw | 3,385 |
+| 1 | drop rows with no `Deal Size` | 2,242 |
+| 2 | `Deal Status == 'Completed'` | 2,206 |
+| 3 | `Universe` contains 'Pre-venture' or 'Venture Capital' | 2,038 |
+| 4 | company's `Company Financing Status` in the qualified list | **1,964** |
+
+**Rule 4 filters deals, not companies.** `pb_companies` keeps all 475 with an
+`in_qualified_universe` flag, so the system can say "GE Healthcare is a public
+corporation, outside the venture universe" rather than returning nothing and
+leaving the reader to infer "no funding". 389 of 475 are in the qualified universe.
+
+Rule 4 excludes the largest FDA filers by design — GE Healthcare (95 clearances),
+Siemens (84), Philips (38), Canon Medical Systems (38), Medtronic (7) are all
+`Corporation` or `Corporate Backed or Acquired`. **This is a stated scope, not a
+gap:** cross-source answers cover the venture-backed universe, and the incumbents
+that dominate FDA clearance counts have no funding profile by construction.
+
+## Correction: `Deal Size` is already USD
+
+An earlier note here flagged mixed currencies as needing conversion. **That was
+wrong.** `Native Currency of Deal` labels the deal's original currency, but
+`Deal Size` is normalised to USD millions. Evidence: 101 USD deals match their
+stated amount exactly, and CNY deals convert at 6.77 and 6.89 — correct CNY/USD
+rates.
+
+## Open: "capital raised" is not yet defined, and the default is badly wrong
+
+The four rules do not filter `Deal Type`, and the consequence is severe.
+
+Querying capital raised before first clearance currently ranks **Apple first at
+$297.6 billion**. Its 30 qualifying "rounds" are:
+
+| deal type | n | USD m |
+|---|---|---|
+| Share Repurchase | 7 | 166,000 |
+| General Corporate Purpose | 5 | 41,250 |
+| Leveraged Recapitalization | 3 | 32,500 |
+| Secondary Transaction – Open Market | 2 | 30,000 |
+| Dividend Recapitalization | 4 | 24,500 |
+| … | | |
+| **Early Stage VC** | **3** | **4** |
+
+A share repurchase is capital flowing *out* of the company to shareholders.
+Counting it as "raised" is not an approximation, it is the wrong sign.
+
+Across the whole cleaned table:
+
+| scope | deals | USD m |
+|---|---|---|
+| all deal types | 1,964 | 501,811 |
+| venture-style types only | 1,222 | 24,715 |
+
+**95% of the capital comes from deal types that are not company fundraising.**
+
+The distinction that matters is whether money reaches the company:
+
+- **Primary** — Seed, Angel, Early/Later Stage VC, Accelerator/Incubator, PE
+  Growth/Expansion. Money in.
+- **Not fundraising** — Share Repurchase, Dividend/Leveraged Recapitalization,
+  Secondary Transaction, Buyout/LBO, Merger/Acquisition. Money out, or between
+  shareholders.
+- **Arguable** — Grant (non-dilutive, real money in), IPO and PIPE (primary but
+  public-market), Debt (money in, not equity).
+
+This needs an owner ruling before the PitchBook contract is written.

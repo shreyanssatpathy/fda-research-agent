@@ -5,6 +5,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / "data"
 RAW_FDA_DIR = DATA_DIR / "raw" / "fda"
+PB_RAW_DIR = DATA_DIR / "raw" / "pitchbook"
 PROCESSED_DIR = DATA_DIR / "processed"
 
 DB_PATH = PROCESSED_DIR / "fda.duckdb"
