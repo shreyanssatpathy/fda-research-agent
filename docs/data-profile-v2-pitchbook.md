@@ -139,18 +139,25 @@ Implemented in `src/fda_agent/ingest_pitchbook.py`, enforced by tests.
 | 1 | drop rows with no `Deal Size` | 2,242 |
 | 2 | `Deal Status == 'Completed'` | 2,206 |
 | 3 | `Universe` contains 'Pre-venture' or 'Venture Capital' | 2,038 |
-| 4 | company's `Company Financing Status` in the qualified list | **1,964** |
+| 4 | company's `Company Financing Status` in the qualified list | **1,988** |
 
 **Rule 4 filters deals, not companies.** `pb_companies` keeps all 475 with an
 `in_qualified_universe` flag, so the system can say "GE Healthcare is a public
 corporation, outside the venture universe" rather than returning nothing and
-leaving the reader to infer "no funding". 389 of 475 are in the qualified universe.
+leaving the reader to infer "no funding". 411 of 475 are in the qualified universe.
 
-Rule 4 excludes the largest FDA filers by design — GE Healthcare (95 clearances),
-Siemens (84), Philips (38), Canon Medical Systems (38), Medtronic (7) are all
-`Corporation` or `Corporate Backed or Acquired`. **This is a stated scope, not a
-gap:** cross-source answers cover the venture-backed universe, and the incumbents
-that dominate FDA clearance counts have no funding profile by construction.
+`Corporate Backed or Acquired` was added to the qualified list by the owner on
+2026-08-27. It brings in 22 companies that were venture-backed and later acquired
+by a corporate — Canon Medical Systems, Annalise.ai, iCAD, Medicrea, Beckman
+Coulter — whose pre-acquisition funding history is exactly what a "raised before
+first clearance" question is asking about. Effect: +24 deals, +8 venture rounds,
++5 FDA companies with funding (346 → 351).
+
+Rule 4 still excludes pure incumbents by design — GE Healthcare (95 clearances),
+Siemens (84), Philips (38), Medtronic (7) are all `Corporation`. **This is a stated
+scope, not a gap:** cross-source answers cover the venture-backed universe, and the
+incumbents that dominate FDA clearance counts have no funding profile by
+construction. The contract must say so, or their absence reads as zero funding.
 
 ## Correction: `Deal Size` is already USD
 
@@ -202,8 +209,8 @@ The distinction that matters is whether money reaches the company:
 ## Resolved: "capital raised" = venture rounds only (owner ruling, 2026-08-27)
 
 `VENTURE_DEAL_TYPES` = Seed Round, Angel (individual), Early Stage VC, Later Stage
-VC, Accelerator/Incubator, PE Growth/Expansion. **1,222 of 1,964 deals,
-$24,714.8m.**
+VC, Accelerator/Incubator, PE Growth/Expansion. **1,230 of 1,988 deals,
+$24,770.5m.**
 
 Implemented as a **column (`is_venture_round`), not a filter.** The excluded rows
 are not junk — an acquisition or IPO is exactly what a research brief's corporate

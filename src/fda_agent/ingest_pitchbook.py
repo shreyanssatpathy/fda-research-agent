@@ -38,6 +38,11 @@ QUALIFIED_FINANCING_STATUS = (
     "Formerly VC-backed",
     "Private Equity-Backed",
     "Venture Capital-Backed",
+    # Added by owner 2026-08-27. Brings in venture-backed companies that were
+    # later acquired by a corporate — Canon Medical Systems, Annalise.ai, iCAD,
+    # Medicrea — whose pre-acquisition funding history is exactly what a
+    # "raised before first clearance" question is asking about.
+    "Corporate Backed or Acquired",
 )
 
 # A Universe cell is a comma-joined set of labels; qualify on either token.
