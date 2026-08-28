@@ -212,3 +212,47 @@ def test_missing_env_file_is_not_an_error(tmp_path):
     from fda_agent.env import load_env
 
     assert load_env(tmp_path / "nope.env") == []
+
+
+# --- ledger durability (bug found 2026-08-28) ---------------------------------------
+
+
+def test_corrupted_ledger_fails_loudly_and_does_not_reset_the_budget(tmp_path):
+    """A half-written ledger must stop spending, not silently start over.
+
+    Observed in practice: the file ended up 327 bytes of a 326-byte document with
+    a duplicated closing brace, and every later call died with a JSONDecodeError
+    from deep in the stack. Falling back to zero would be worse — it hands back an
+    unlimited budget at exactly the moment the accounting is untrustworthy.
+    """
+    from fda_agent.llm.budget import LedgerCorrupted
+
+    path = tmp_path / "l.json"
+    path.write_text('{"spent_usd": 1.0, "calls": 1, "by_model": {}}}')  # stray brace
+    b = Budget(ceiling_usd=5.0, ledger_path=path)
+    with pytest.raises(LedgerCorrupted, match="not valid JSON"):
+        b.check()
+
+
+def test_ledger_write_is_atomic(tmp_path):
+    """A shorter write must fully replace a longer one, leaving no tail."""
+    path = tmp_path / "l.json"
+    b = Budget(ceiling_usd=100.0, ledger_path=path)
+    b.record(Usage(input_tokens=1_000_000, output_tokens=1_000_000), "claude-opus-5")
+    long_len = len(path.read_text())
+
+    path.write_text(json.dumps({"spent_usd": 0.0, "calls": 0, "by_model": {}}) + " " * 400)
+    b.record(Usage(input_tokens=10, output_tokens=10), "claude-opus-5")
+
+    text = path.read_text()
+    assert json.loads(text), "must parse — no leftover bytes from the longer file"
+    assert len(text) < long_len + 400
+
+
+def test_no_temp_files_are_left_behind(tmp_path):
+    path = tmp_path / "l.json"
+    b = Budget(ceiling_usd=10.0, ledger_path=path)
+    for _ in range(3):
+        b.record(Usage(input_tokens=100, output_tokens=100), "claude-opus-5")
+    leftovers = [p.name for p in tmp_path.iterdir() if p.name != "l.json"]
+    assert not leftovers, f"temp files left: {leftovers}"

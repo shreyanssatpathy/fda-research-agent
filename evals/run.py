@@ -36,6 +36,7 @@ SETS = {
     "v3": Path(__file__).parent / "golden_v3.yaml",
     "v4": Path(__file__).parent / "golden_v4.yaml",
     "pitchbook": Path(__file__).parent / "golden_pitchbook.yaml",
+    "pitchbook2": Path(__file__).parent / "golden_pitchbook_v2.yaml",
 }
 SAMPLE_IDS = ["C01", "M03", "F01", "T01", "D01", "R01", "R03", "A01"]
 PB_SAMPLE_IDS = ["P01", "P05", "P06", "P12", "P16", "P21", "P22"]

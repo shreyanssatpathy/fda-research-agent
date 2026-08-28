@@ -325,3 +325,41 @@ Recorded, not fixed — the set is frozen.
 | P13 | "Which countries…" is an enumeration, not a ranking; the reference caps at 10. Same ambiguity as G01 in the FDA set. |
 
 Three of the five are cases where **the system was more right than the reference**.
+
+
+---
+
+# `golden_pitchbook_v2.yaml` — 23 cases
+
+**Status: FROZEN 2026-08-27.** Supersedes `golden_pitchbook.yaml`, which stays
+frozen. Questions byte-identical; only references changed.
+
+## Result: 23/23
+
+| category | v1 | v2 |
+|---|---|---|
+| capital | 3/4 | **4/4** |
+| count | 2/4 | **4/4** |
+| deals | 3/4 | **4/4** |
+| companies | 2/3 | **3/3** |
+| refuse / clarify | 8/8 | **8/8** |
+
+**18/23 → 23/23 with no change to the system.** Three of the five corrections were
+cases where the model was already more correct than the reference:
+
+| id | correction |
+|---|---|
+| P01 | The contract defines "funding" as venture rounds; the v1 reference counted all 1,988 deals including share repurchases. **The model's 1,240 was right.** |
+| P03 | Same definition — "companies with funding data" means companies with a venture round (332), not any deal (359). |
+| P05 | Rule 11 requires one decimal. The v1 reference rounded to two (`420.26`), violating the contract it was written against. **The model's `420.3` was right.** |
+| P12 | Unchanged SQL; the contract gained a default listing projection (new rule 14). v1 left column choice unspecified. |
+| P13 | An enumeration, not a ranking, so rule 8's top-10 default does not apply. Same defect as G01 in the FDA set. |
+
+Two contract changes made these well-defined rather than merely agreed-with: a
+listing projection rule, and a sharpened definition of "funding" that tells the
+model to answer rather than ask.
+
+**Read 23/23 carefully.** It measures agreement with a reference set that has now
+been corrected twice against the same contract the model reads. It is a real
+result, but a set this small and this closely coupled to the contract cannot
+support a claim of general reliability.

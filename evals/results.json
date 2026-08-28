@@ -1,11 +1,11 @@
 {
-  "run_at": "2026-08-28T01:44:44+00:00",
-  "golden_set": "golden_pitchbook.yaml",
+  "run_at": "2026-08-28T02:37:31+00:00",
+  "golden_set": "golden_pitchbook_v2.yaml",
   "mode": "full",
-  "golden_schema_version": "pb-1.0.0",
-  "passed": 18,
+  "golden_schema_version": "pb-2.0.0",
+  "passed": 23,
   "total": 23,
-  "spend_usd": 4.513366,
+  "spend_usd": 4.993741,
   "results": [
     {
       "id": "P01",
@@ -14,9 +14,9 @@
       "action": "sql",
       "cached": true,
       "cost_usd": 0.0,
-      "generated_sql": "SELECT count(*) AS n_funding_deals FROM pb_deals WHERE is_venture_round = true",
-      "status": "fail",
-      "detail": "row 0 differs: expected ('1988',), got ('1240',)"
+      "generated_sql": "SELECT count(*) AS venture_round_count FROM pb_deals WHERE is_venture_round = true",
+      "status": "pass",
+      "detail": "match"
     },
     {
       "id": "P02",
@@ -33,11 +33,12 @@
       "id": "P03",
       "category": "count",
       "question": "How many companies have funding data?",
-      "action": "clarify",
+      "action": "sql",
       "cached": true,
       "cost_usd": 0.0,
-      "status": "fail",
-      "detail": "declined an answerable question: Do you mean companies with at least one disclosed venture round in pb_deals (is_venture_round = true), or companies with a non-null PitchBook lifetime total_raised_usd_m in pb_companies? The two counts differ because they measure different things."
+      "generated_sql": "SELECT count(DISTINCT company_id) AS n_companies FROM pb_deals WHERE is_venture_round = true",
+      "status": "pass",
+      "detail": "match"
     },
     {
       "id": "P04",
@@ -57,9 +58,9 @@
       "action": "sql",
       "cached": true,
       "cost_usd": 0.0,
-      "generated_sql": "SELECT ROUND(SUM(d.deal_size_usd_m), 1) AS venture_funding_usd_m FROM pb_deals d JOIN pb_companies c ON c.company_id = d.company_id WHERE d.is_venture_round = true AND (lower(c.company_name_pb) LIKE '%aidoc%' OR lower(coalesce(c.company_legal_name, '')) LIKE '%aidoc%' OR lower(coalesce(c.company_former_name, '')) LIKE '%aidoc%')",
-      "status": "fail",
-      "detail": "row 0 differs: expected ('420.26',), got ('420.3',)"
+      "generated_sql": "SELECT round(sum(d.deal_size_usd_m), 1) AS venture_funding_usd_m FROM pb_deals d JOIN pb_companies c ON c.company_id = d.company_id WHERE lower(c.company_name_pb) = 'aidoc' AND d.is_venture_round = true",
+      "status": "pass",
+      "detail": "match"
     },
     {
       "id": "P06",
@@ -68,7 +69,7 @@
       "action": "sql",
       "cached": true,
       "cost_usd": 0.0,
-      "generated_sql": "SELECT d.company_name_pb, ROUND(SUM(d.deal_size_usd_m), 1) AS venture_raised_usd_m FROM pb_deals d WHERE d.is_venture_round = true GROUP BY d.company_name_pb ORDER BY venture_raised_usd_m DESC, d.company_name_pb LIMIT 10",
+      "generated_sql": "SELECT company_name_pb, ROUND(SUM(deal_size_usd_m), 1) AS venture_raised_usd_m FROM pb_deals WHERE is_venture_round = true GROUP BY company_name_pb ORDER BY venture_raised_usd_m DESC, company_name_pb LIMIT 10",
       "status": "pass",
       "detail": "match"
     },
@@ -79,7 +80,7 @@
       "action": "sql",
       "cached": true,
       "cost_usd": 0.0,
-      "generated_sql": "SELECT round(median(deal_size_usd_m), 1) AS median_venture_round_usd_m FROM pb_deals WHERE is_venture_round = true",
+      "generated_sql": "SELECT ROUND(MEDIAN(deal_size_usd_m), 1) AS median_venture_round_usd_m FROM pb_deals WHERE is_venture_round = true",
       "status": "pass",
       "detail": "match"
     },
@@ -101,7 +102,7 @@
       "action": "sql",
       "cached": true,
       "cost_usd": 0.0,
-      "generated_sql": "SELECT deal_type, count(*) AS n FROM pb_deals GROUP BY deal_type ORDER BY n DESC, deal_type LIMIT 10",
+      "generated_sql": "SELECT deal_type, count(*) AS n_deals FROM pb_deals GROUP BY deal_type ORDER BY n_deals DESC, deal_type LIMIT 10",
       "status": "pass",
       "detail": "match"
     },
@@ -112,7 +113,7 @@
       "action": "sql",
       "cached": true,
       "cost_usd": 0.0,
-      "generated_sql": "SELECT date_part('year', deal_date) AS deal_year, count(*) AS n_venture_rounds FROM pb_deals WHERE is_venture_round = true AND deal_date IS NOT NULL AND date_part('year', deal_date) >= 2020 GROUP BY 1 ORDER BY 1",
+      "generated_sql": "SELECT EXTRACT(YEAR FROM deal_date) AS deal_year, COUNT(*) AS n_rounds FROM pb_deals WHERE is_venture_round = true AND deal_date IS NOT NULL AND deal_date >= DATE '2020-01-01' GROUP BY 1 ORDER BY deal_year",
       "status": "pass",
       "detail": "match"
     },
@@ -134,9 +135,9 @@
       "action": "sql",
       "cached": true,
       "cost_usd": 0.0,
-      "generated_sql": "SELECT d.deal_date, d.deal_type, d.deal_size_usd_m, d.deal_size_status FROM pb_deals d JOIN pb_companies c ON d.company_id = c.company_id WHERE d.is_venture_round = true AND (lower(c.company_name_pb) LIKE '%butterfly network%' OR lower(coalesce(c.company_legal_name,'')) LIKE '%butterfly network%' OR lower(coalesce(c.company_former_name,'')) LIKE '%butterfly network%') ORDER BY d.deal_date, d.deal_id",
-      "status": "fail",
-      "detail": "row 0 differs: expected ('2012-12-14', 'Early Stage VC', '40.76'), got ('2012-12-14', 'Early Stage VC', '40.76', 'Actual')"
+      "generated_sql": "SELECT d.deal_date, d.deal_type, d.deal_size_usd_m FROM pb_deals d JOIN pb_companies c ON d.company_id = c.company_id WHERE lower(c.company_name_pb) LIKE '%butterfly network%' AND d.is_venture_round = true ORDER BY d.deal_date",
+      "status": "pass",
+      "detail": "match"
     },
     {
       "id": "P13",
@@ -146,16 +147,16 @@
       "cached": true,
       "cost_usd": 0.0,
       "generated_sql": "SELECT hq_country, count(*) AS n_companies FROM pb_companies GROUP BY hq_country ORDER BY n_companies DESC, hq_country",
-      "status": "fail",
-      "detail": "row count 34 != expected 10"
+      "status": "pass",
+      "detail": "match"
     },
     {
       "id": "P14",
       "category": "companies",
       "question": "How many companies were founded after 2015?",
       "action": "sql",
-      "cached": true,
-      "cost_usd": 0.0,
+      "cached": false,
+      "cost_usd": 0.0079995,
       "generated_sql": "SELECT count(*) AS n_companies FROM pb_companies WHERE year_founded > 2015",
       "status": "pass",
       "detail": "match"
@@ -165,9 +166,9 @@
       "category": "companies",
       "question": "What financing statuses do these companies have?",
       "action": "sql",
-      "cached": true,
-      "cost_usd": 0.0,
-      "generated_sql": "SELECT financing_status, count(*) AS n_companies FROM pb_companies GROUP BY financing_status ORDER BY n_companies DESC, financing_status",
+      "cached": false,
+      "cost_usd": 0.006124500000000001,
+      "generated_sql": "SELECT financing_status, count(*) AS n FROM pb_companies GROUP BY financing_status ORDER BY n DESC, financing_status",
       "status": "pass",
       "detail": "match"
     },
@@ -176,80 +177,80 @@
       "category": "refuse_needs_fda",
       "question": "How much did companies raise before their first FDA clearance?",
       "action": "refuse",
-      "cached": true,
-      "cost_usd": 0.0,
+      "cached": false,
+      "cost_usd": 0.0084995,
       "status": "pass",
-      "detail": "Answering this needs first FDA clearance dates, which live in the `fda_510k` table \u2014 not available to me here. I only have `pb_deals` and `pb_companies`, which contain no clearance dates, so deals cannot be split into before/after a clearance."
+      "detail": "Answering this requires first FDA clearance dates, which live in the `fda_510k` table \u2014 not available to me here; `pb_deals` and `pb_companies` contain no clearance dates."
     },
     {
       "id": "P17",
       "category": "refuse_needs_fda",
       "question": "Which company got FDA clearance fastest after its Series A?",
       "action": "refuse",
-      "cached": true,
-      "cost_usd": 0.0,
+      "cached": false,
+      "cost_usd": 0.008234499999999999,
       "status": "pass",
-      "detail": "This needs FDA clearance dates, which live in the `fda_510k` table that isn't available here \u2014 I only have PitchBook deals and companies. Also, `pb_deals.deal_type` distinguishes Early/Later Stage VC but does not label rounds as \"Series A\" specifically."
+      "detail": "This needs FDA clearance dates, which live in the fda_510k table that isn't available to me here \u2014 I only have pb_deals and pb_companies. There is also no Series A label in the deal data (rounds are typed as Early Stage VC, Seed Round, etc.), so the round side of the comparison can't be identified either."
     },
     {
       "id": "P18",
       "category": "refuse_needs_fda",
       "question": "How many AI devices has Aidoc cleared?",
       "action": "refuse",
-      "cached": true,
-      "cost_usd": 0.0,
+      "cached": false,
+      "cost_usd": 0.0066945,
       "status": "pass",
-      "detail": "Device clearance counts require the FDA 510(k) data (clearance records, device information), which is not available in `pb_deals` or `pb_companies` \u2014 these tables only cover PitchBook funding and company attributes."
+      "detail": "Device clearance counts require the FDA 510(k) data (clearance records, device information), which is not available in `pb_deals` or `pb_companies`. These tables only cover funding deals and company profiles."
     },
     {
       "id": "P19",
       "category": "refuse_not_in_data",
       "question": "Which investors backed the most companies?",
       "action": "refuse",
-      "cached": true,
-      "cost_usd": 0.0,
+      "cached": false,
+      "cost_usd": 0.0057445,
       "status": "pass",
-      "detail": "Investor names are not present in `pb_deals` or `pb_companies` \u2014 the deal export has no investor-level columns (it is one row per deal, not per investor per round), so there is no way to count companies backed by an investor."
+      "detail": "Investor names are not present in `pb_deals` or `pb_companies` \u2014 the deal export has no investor-level columns, so there is no way to count companies per investor."
     },
     {
       "id": "P20",
       "category": "refuse_not_in_data",
       "question": "How much revenue do these companies generate?",
       "action": "refuse",
-      "cached": true,
-      "cost_usd": 0.0,
+      "cached": false,
+      "cost_usd": 0.009399500000000002,
       "status": "pass",
-      "detail": "There is no revenue column in either table \u2014 `pb_companies` only carries a coarse `business_status` label (e.g. 'Generating Revenue', 'Profitable'), which is a stage flag, not a monetary figure. Revenue amounts are not in this dataset."
+      "detail": "There is no revenue column in `pb_deals` or `pb_companies` \u2014 the closest field is `business_status`, a categorical label (e.g. 'Generating Revenue', 'Profitable') that indicates whether a company has revenue at all, not any dollar amount. Revenue figures are missing from this data entirely."
     },
     {
       "id": "P21",
       "category": "refuse_not_in_data",
       "question": "How much did GE Healthcare raise?",
       "action": "refuse",
-      "cached": true,
-      "cost_usd": 0.0,
+      "cached": false,
+      "cost_usd": 0.0079295,
       "status": "pass",
-      "detail": "GE Healthcare is classified as a `Corporation` (`in_qualified_universe = false`) and is outside this dataset's venture universe by design, so it has no funding profile here \u2014 deals for such companies are excluded at load. That is a scope exclusion, not evidence that it raised nothing."
+      "detail": "GE Healthcare is classified as a public `Corporation` (in_qualified_universe = false), so it is outside this dataset's venture universe by design and has no funding profile here \u2014 its deals are excluded at load. This is a scope exclusion, not evidence that it raised nothing."
     },
     {
       "id": "P22",
       "category": "clarify",
       "question": "How much has Samsung raised?",
       "action": "clarify",
-      "cached": true,
-      "cost_usd": 0.0,
+      "cached": false,
+      "cost_usd": 0.0102895,
       "status": "pass",
-      "detail": "\"Samsung\" can match more than one entity in `pb_companies` (e.g. Samsung Electronics vs. Samsung Medison/HME device arms), and several Samsung entities are likely `Corporation` records that sit outside the venture universe and so have no funding profile here. Which specific Samsung company name should I resolve against?"
+      "detail": "\"Samsung\" can match more than one entity in pb_companies (e.g. Samsung Electronics versus Samsung Medison), and large Samsung entities are typically classified as `Corporation` and therefore outside the venture universe. Which specific Samsung company do you mean?"
     },
     {
       "id": "P23",
       "category": "clarify",
       "question": "What is this company's total funding?",
       "action": "clarify",
-      "cached": true,
-      "cost_usd": 0.0,
+      "cached": false,
+      "cost_usd": 0.0080345,
       "status": "pass",
-      "detail": "No company is named in the question \u2014 which company do you want the funding figure for, and should I use venture rounds from pb_deals or PitchBook's lifetime total_raised_usd_m?"
+      "detail": "No company is named in the question \u2014 which company's funding would you like? (Also note \"funding\" here means the sum of disclosed venture rounds in `pb_deals`, unless you want PitchBook's lifetime `total_raised_usd_m`.)"
     }
   ]
 }

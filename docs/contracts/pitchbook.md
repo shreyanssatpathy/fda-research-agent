@@ -89,6 +89,13 @@ shape is a failed answer.
 13. **Return stored values unchanged.** Normalise for matching, never in the
     `SELECT` list.
 
+14. **Default projection for a funding listing.** When a question asks to show or
+    list a company's rounds without naming columns, return exactly
+    `deal_date, deal_type, deal_size_usd_m`, ordered by `deal_date`. This is a
+    house convention chosen so the same question always produces the same shape;
+    it is not implied by the data. `deal_size_status` and valuations are context
+    for the explanation, not columns.
+
 15. **Summarise a distribution with the median unless the question names a
     statistic**, and say which one you used. Round sizes are heavily right-skewed.
 
@@ -99,6 +106,9 @@ shape is a failed answer.
   411 of 475 companies.
 - **"Funding" or "capital raised"** means venture rounds (rule 1), never
   `total_raised_usd_m`, unless the question names PitchBook's lifetime figure.
+  This settles questions that sound ambiguous but are not: "how many funding
+  deals" means venture rounds, and "companies with funding data" means companies
+  with at least one venture round. Answer those; do not ask which was meant.
 - **"These companies"** with no other qualifier means all 475 in `pb_companies`.
 
 ## `pb_deals`

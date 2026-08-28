@@ -1,0 +1,384 @@
+schema_version: pb-2.0.0
+source: pitchbook
+supersedes: golden_pitchbook.yaml
+frozen: true
+frozen_on: '2026-08-27'
+note: FROZEN 2026-08-27. pitchbook-v1 remains frozen. Five references corrected against stated contract rules; questions
+  byte-identical to v1.
+cases:
+- id: P01
+  category: count
+  question: How many funding deals are in the database?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM pb_deals WHERE is_venture_round
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 1240
+    truncated: false
+  changed_in_v2: The contract defines 'funding' as venture rounds. The v1 reference counted all 1,988
+    deals including share repurchases and M&A, contradicting rule 1. The system answered 1,240 and was
+    right.
+- id: P02
+  category: count
+  question: How many venture rounds are there?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM pb_deals WHERE is_venture_round
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 1240
+    truncated: false
+- id: P03
+  category: count
+  question: How many companies have funding data?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(DISTINCT company_id) AS n FROM pb_deals WHERE is_venture_round
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 332
+    truncated: false
+  changed_in_v2: 'Same definition: ''companies with funding data'' means companies with a venture round.
+    The v1 reference counted companies with any deal (359). The system asked which was meant — reasonable
+    against v1''s contract, now settled by the sharpened definition.'
+- id: P04
+  category: count
+  question: How many companies are venture-backed?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM pb_companies WHERE in_qualified_universe
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 411
+    truncated: false
+- id: P05
+  category: capital
+  question: How much venture funding has Aidoc raised?
+  expects: answer
+  note: Must filter is_venture_round; the total is a floor (disclosed rounds only).
+  reference_sql: SELECT round(sum(d.deal_size_usd_m), 1) AS venture_usd_m FROM pb_deals d JOIN pb_companies
+    c USING (company_id) WHERE (lower(c.company_name_pb) = lower('Aidoc') OR lower(c.company_name_pb)
+    LIKE lower('Aidoc') || ' %') AND d.is_venture_round
+  expected_answer:
+    row_count: 1
+    columns:
+    - venture_usd_m
+    rows:
+    - venture_usd_m: 420.3
+    truncated: false
+  changed_in_v2: Rule 11 requires one decimal place. The v1 reference rounded to two (420.26), violating
+    the contract it was written against. The system returned 420.3 and was right.
+- id: P06
+  category: capital
+  question: Which companies have raised the most venture funding?
+  expects: answer
+  note: Unfiltered, this ranks Apple first on share repurchases.
+  reference_sql: SELECT c.company_name_pb, round(sum(d.deal_size_usd_m), 1) AS venture_usd_m FROM pb_deals
+    d JOIN pb_companies c USING (company_id) WHERE d.is_venture_round GROUP BY 1 ORDER BY venture_usd_m
+    DESC, 1 LIMIT 10
+  expected_answer:
+    row_count: 10
+    columns:
+    - company_name_pb
+    - venture_usd_m
+    rows:
+    - company_name_pb: Verily Life Sciences
+      venture_usd_m: 2800
+    - company_name_pb: 'Tempus AI (NAS: TEM)'
+      venture_usd_m: 1411.8
+    - company_name_pb: Neusoft Medical Systems
+      venture_usd_m: 1228
+    - company_name_pb: 'HeartFlow (NAS: HTFL)'
+      venture_usd_m: 927.1
+    - company_name_pb: Chrome Holding
+      venture_usd_m: 873.2
+    - company_name_pb: 'United-Imaging (SHG: 688271)'
+      venture_usd_m: 505.8
+    - company_name_pb: Biofourmis
+      venture_usd_m: 465
+    - company_name_pb: Aidoc
+      venture_usd_m: 420.3
+    - company_name_pb: Cleerly
+      venture_usd_m: 410.3
+    - company_name_pb: 'Butterfly Network (Burlington) (NYS: BFLY)'
+      venture_usd_m: 390.8
+    truncated: false
+- id: P07
+  category: capital
+  question: What is the median venture round size?
+  expects: answer
+  note: null
+  reference_sql: SELECT round(median(deal_size_usd_m), 1) AS median_usd_m FROM pb_deals WHERE is_venture_round
+  expected_answer:
+    row_count: 1
+    columns:
+    - median_usd_m
+    rows:
+    - median_usd_m: 4.7
+    truncated: false
+- id: P08
+  category: capital
+  question: How much total venture capital is in this dataset?
+  expects: answer
+  note: null
+  reference_sql: SELECT round(sum(deal_size_usd_m), 1) AS venture_usd_m FROM pb_deals WHERE is_venture_round
+  expected_answer:
+    row_count: 1
+    columns:
+    - venture_usd_m
+    rows:
+    - venture_usd_m: 24799.9
+    truncated: false
+- id: P09
+  category: deals
+  question: What types of deals are most common?
+  expects: answer
+  note: null
+  reference_sql: SELECT deal_type, count(*) AS n FROM pb_deals GROUP BY 1 ORDER BY n DESC, deal_type LIMIT
+    10
+  expected_answer:
+    row_count: 10
+    columns:
+    - deal_type
+    - n
+    rows:
+    - deal_type: Later Stage VC
+      n: 530
+    - deal_type: Grant
+      n: 339
+    - deal_type: Early Stage VC
+      n: 305
+    - deal_type: Seed Round
+      n: 187
+    - deal_type: Accelerator/Incubator
+      n: 107
+    - deal_type: PIPE
+      n: 90
+    - deal_type: Angel (individual)
+      n: 60
+    - deal_type: Merger/Acquisition
+      n: 49
+    - deal_type: Debt - General
+      n: 48
+    - deal_type: PE Growth/Expansion
+      n: 41
+    truncated: false
+- id: P10
+  category: deals
+  question: How many venture rounds happened each year since 2020?
+  expects: answer
+  note: null
+  reference_sql: SELECT year(deal_date) AS yr, count(*) AS n FROM pb_deals WHERE is_venture_round AND
+    year(deal_date) >= 2020 GROUP BY 1 ORDER BY yr
+  expected_answer:
+    row_count: 7
+    columns:
+    - yr
+    - n
+    rows:
+    - yr: 2020
+      n: 137
+    - yr: 2021
+      n: 107
+    - yr: 2022
+      n: 100
+    - yr: 2023
+      n: 89
+    - yr: 2024
+      n: 76
+    - yr: 2025
+      n: 47
+    - yr: 2026
+      n: 27
+    truncated: false
+- id: P11
+  category: deals
+  question: How many deals have an estimated rather than actual size?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM pb_deals WHERE deal_size_status = 'Estimated'
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 141
+    truncated: false
+- id: P12
+  category: deals
+  question: Show all venture rounds for Butterfly Network.
+  expects: answer
+  note: null
+  reference_sql: SELECT d.deal_date, d.deal_type, d.deal_size_usd_m FROM pb_deals d JOIN pb_companies
+    c USING (company_id) WHERE (lower(c.company_name_pb) = lower('Butterfly Network') OR lower(c.company_name_pb)
+    LIKE lower('Butterfly Network') || ' %') AND d.is_venture_round ORDER BY d.deal_date
+  expected_answer:
+    row_count: 3
+    columns:
+    - deal_date
+    - deal_type
+    - deal_size_usd_m
+    rows:
+    - deal_date: '2012-12-14'
+      deal_type: Early Stage VC
+      deal_size_usd_m: 40.76
+    - deal_date: '2014-11-02'
+      deal_type: Later Stage VC
+      deal_size_usd_m: 100
+    - deal_date: '2018-09-27'
+      deal_type: Later Stage VC
+      deal_size_usd_m: 250
+    truncated: false
+  changed_in_v2: Unchanged SQL, but the contract now defines a default listing projection (new rule 14).
+    v1 had no such rule, so the column choice was unspecified and the system added deal_size_status defensibly.
+- id: P13
+  category: companies
+  question: Which countries are these companies headquartered in?
+  expects: answer
+  note: null
+  reference_sql: SELECT hq_country, count(*) AS n FROM pb_companies GROUP BY 1 ORDER BY n DESC, hq_country
+  expected_answer:
+    row_count: 34
+    columns:
+    - hq_country
+    - n
+    rows:
+    - hq_country: United States
+      n: 231
+    - hq_country: France
+      n: 30
+    - hq_country: South Korea
+      n: 23
+    - hq_country: Canada
+      n: 22
+    - hq_country: Israel
+      n: 22
+    - hq_country: United Kingdom
+      n: 22
+    - hq_country: China
+      n: 14
+    - hq_country: Australia
+      n: 11
+    - hq_country: Sweden
+      n: 11
+    - hq_country: Taiwan
+      n: 11
+    - hq_country: Netherlands
+      n: 10
+    - hq_country: Germany
+      n: 9
+    truncated: true
+  changed_in_v2: An enumeration, not a ranking, so rule 8's top-10 default does not apply. The v1 reference
+    capped at 10 arbitrarily. Same defect as G01 in the FDA set.
+- id: P14
+  category: companies
+  question: How many companies were founded after 2015?
+  expects: answer
+  note: null
+  reference_sql: SELECT count(*) AS n FROM pb_companies WHERE year_founded > 2015
+  expected_answer:
+    row_count: 1
+    columns:
+    - n
+    rows:
+    - n: 175
+    truncated: false
+- id: P15
+  category: companies
+  question: What financing statuses do these companies have?
+  expects: answer
+  note: null
+  reference_sql: SELECT financing_status, count(*) AS n FROM pb_companies GROUP BY 1 ORDER BY n DESC,
+    financing_status
+  expected_answer:
+    row_count: 12
+    columns:
+    - financing_status
+    - n
+    rows:
+    - financing_status: Venture Capital-Backed
+      n: 226
+    - financing_status: Formerly VC-backed
+      n: 92
+    - financing_status: Corporation
+      n: 62
+    - financing_status: Private Equity-Backed
+      n: 32
+    - financing_status: Corporate Backed or Acquired
+      n: 22
+    - financing_status: Formerly PE-Backed
+      n: 18
+    - financing_status: Accelerator/Incubator Backed
+      n: 13
+    - financing_status: Formerly Accelerator/Incubator backed
+      n: 4
+    - financing_status: Angel-Backed
+      n: 2
+    - financing_status: Formerly Angel backed
+      n: 2
+    - financing_status: Failed Transaction (Angel)
+      n: 1
+    - financing_status: Failed Transaction (M&A)
+      n: 1
+    truncated: false
+- id: P16
+  category: refuse_needs_fda
+  question: How much did companies raise before their first FDA clearance?
+  expects: refuse
+  note: Needs fda_510k, which this tool cannot query.
+  reference_sql: null
+- id: P17
+  category: refuse_needs_fda
+  question: Which company got FDA clearance fastest after its Series A?
+  expects: refuse
+  note: Needs FDA clearance dates.
+  reference_sql: null
+- id: P18
+  category: refuse_needs_fda
+  question: How many AI devices has Aidoc cleared?
+  expects: refuse
+  note: Device counts are FDA data, not funding data.
+  reference_sql: null
+- id: P19
+  category: refuse_not_in_data
+  question: Which investors backed the most companies?
+  expects: refuse
+  note: Investor names are not in these tables.
+  reference_sql: null
+- id: P20
+  category: refuse_not_in_data
+  question: How much revenue do these companies generate?
+  expects: refuse
+  note: Revenue is not in the loaded columns.
+  reference_sql: null
+- id: P21
+  category: refuse_not_in_data
+  question: How much did GE Healthcare raise?
+  expects: refuse
+  note: GE is a Corporation, outside the venture universe. Out of scope, not zero.
+  reference_sql: null
+- id: P22
+  category: clarify
+  question: How much has Samsung raised?
+  expects: clarify
+  note: Samsung matches more than one company.
+  reference_sql: null
+- id: P23
+  category: clarify
+  question: What is this company's total funding?
+  expects: clarify
+  note: No company named.
+  reference_sql: null

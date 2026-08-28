@@ -20,6 +20,8 @@ SETS = [
     ("golden_v2.yaml", "golden_v2.sha256"),
     ("golden_v3.yaml", "golden_v3.sha256"),
     ("golden_v4.yaml", "golden_v4.sha256"),
+    ("golden_pitchbook.yaml", "golden_pitchbook.sha256"),
+    ("golden_pitchbook_v2.yaml", "golden_pitchbook_v2.sha256"),
 ]
 
 
@@ -165,3 +167,20 @@ def test_v4_records_which_answers_moved():
 def test_v4_reflects_the_merged_company_count():
     v4 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_v4.yaml").read_text())["cases"]}
     assert v4["C02"]["expected_answer"]["rows"][0]["n"] == 459
+
+
+def test_pitchbook_v2_questions_identical_to_v1():
+    v1 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_pitchbook.yaml").read_text())["cases"]}
+    v2 = {c["id"]: c for c in yaml.safe_load((EVAL_DIR / "golden_pitchbook_v2.yaml").read_text())["cases"]}
+    assert set(v1) == set(v2)
+    for cid, case in v2.items():
+        assert case["question"] == v1[cid]["question"], cid
+
+
+def test_pitchbook_v2_corrections_cite_a_reason():
+    v2 = yaml.safe_load((EVAL_DIR / "golden_pitchbook_v2.yaml").read_text())
+    changed = {c["id"] for c in v2["cases"] if c.get("changed_in_v2")}
+    assert changed == {"P01", "P03", "P05", "P12", "P13"}
+    for c in v2["cases"]:
+        if c.get("changed_in_v2"):
+            assert len(c["changed_in_v2"]) > 40, c["id"]

@@ -10,6 +10,7 @@ crashes halfway does not get a fresh budget on the next attempt.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,6 +37,14 @@ DEFAULT_CEILING_USD = 20.00
 
 class BudgetExceeded(Exception):
     """Raised before a call is made, never after. No spend happens on refusal."""
+
+
+class LedgerCorrupted(Exception):
+    """The spend ledger is unreadable, so the ceiling cannot be enforced.
+
+    Deliberately fatal rather than falling back to zero: an unreadable ledger is
+    the one moment when assuming "nothing spent yet" is most dangerous.
+    """
 
 
 @dataclass(frozen=True)
@@ -82,7 +91,19 @@ class Budget:
     def _read(self) -> dict:
         if not self.ledger_path.exists():
             return {"spent_usd": 0.0, "calls": 0, "by_model": {}}
-        return json.loads(self.ledger_path.read_text())
+        raw = self.ledger_path.read_text()
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as err:
+            # A corrupted ledger must fail as a budget problem with a clear
+            # remedy, not as a JSONDecodeError from deep in the call stack.
+            # Never silently reset to zero: that would hand back an unlimited
+            # budget exactly when the accounting is untrustworthy.
+            raise LedgerCorrupted(
+                f"{self.ledger_path} is not valid JSON ({err}). Spend so far "
+                "cannot be verified, so no further calls are permitted. Inspect "
+                "the file and repair or delete it deliberately."
+            ) from err
 
     @property
     def spent_usd(self) -> float:
@@ -119,5 +140,21 @@ class Budget:
         ledger["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        self.ledger_path.write_text(json.dumps(ledger, indent=2))
+        self._write_atomic(ledger)
         return cost
+
+    def _write_atomic(self, ledger: dict) -> None:
+        """Write via a temp file and rename.
+
+        `write_text` is not atomic: a crash or a concurrent writer leaves a
+        half-written file, and one stray byte makes every later call fail. Seen
+        in practice — the ledger ended up 327 bytes of a 326-byte document with a
+        duplicated closing brace. `os.replace` is atomic on POSIX, so a reader
+        sees either the old file or the new one.
+        """
+        tmp = self.ledger_path.with_suffix(f".{os.getpid()}.tmp")
+        try:
+            tmp.write_text(json.dumps(ledger, indent=2))
+            os.replace(tmp, self.ledger_path)
+        finally:
+            tmp.unlink(missing_ok=True)
