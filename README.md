@@ -54,7 +54,11 @@ remaining failures are documented defects in the eval set's own reference SQL; s
 PYTHONPATH=src ./.venv/bin/python -m streamlit run app.py --server.address 127.0.0.1
 ```
 
-The interface renders **refusals, clarifications, empty results, and blocked
+`research(question)` routes each question to one source — FDA clearances, company
+funding, the cross-source funding-vs-clearance timeline, or a deterministic
+company profile — and the interface shows which route was chosen and why.
+
+It renders **refusals, clarifications, empty results, and blocked
 queries as four visibly different things**. That distinction is the point: a
 refusal and a zero-row table look identical if both are just an empty dataframe,
 and conflating them is how a user reads "no clearances in 2026" off a system that
