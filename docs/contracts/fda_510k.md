@@ -8,7 +8,7 @@ Amend with a dated note. Never diverge silently.
 
 - schema_version: `1.0.0`
 - grain: **one row per 510(k) clearance**, keyed by `regnumber`
-- rows: 1367 | companies: 473 | coverage: 2010-05-12 to 2025-12-30
+- rows: 1367 | companies: 459 | coverage: 2010-05-12 to 2025-12-30
 
 ## What this table is
 
@@ -108,30 +108,50 @@ rules, not preferences — a correct number in the wrong shape is a failed answe
 
 ## Matching a company name
 
-10. **Match `company_name` on a case-insensitive, word-anchored prefix.**
+10. **Resolve a company reference, then return the whole company — but first
+    check the reference is unambiguous.**
+
+    **Run the resolution subquery in your head before writing the outer query. If
+    it would match more than one distinct `company_name` and the question is about
+    a single company, `clarify` — do not sum them.** `Canon` matches `Canon`,
+    `Canon Medical Systems` and `Canon Medical Informatics`; `Samsung` matches
+    `Samsung` and `Samsung Medison`. These are separate filers, and adding their
+    clearances together answers a question nobody asked.
 
     ```sql
-    WHERE lower(company_name) = lower('<name>')
-       OR lower(company_name) LIKE lower('<name>') || ' %'
+    WHERE company_name IN (
+      SELECT DISTINCT company_name FROM fda_510k
+      WHERE lower(company_name)  = lower('<name>')
+         OR lower(company_name)  LIKE lower('<name>') || ' %'
+         OR lower(applicant_raw) = lower('<name>')
+         OR lower(applicant_raw) LIKE lower('<name>') || ' %'
+         OR lower(applicant_raw) LIKE lower('<name>') || ',%'
+    )
     ```
 
-    Each part earns its place:
+    Three properties, each earning its place:
 
-    - **Case-insensitive**, because stored names carry irregular capitalisation
-      (`Viz.Ai`, `Qure.AI`, `Icardio.ai`). Plain `=` fails silently:
-      `company_name = 'Viz.ai'` returns **no rows** for a company with ten
-      clearances, and an empty result is not the same as no clearances.
-    - **Prefix with a trailing space**, because users give short names. `Aidoc`
-      must find `Aidoc Medical`; exact equality alone finds nothing.
-    - **Anchored at the start and on a word boundary**, because unanchored
-      substring matching produces false positives that are easy to miss:
+    - **Case-insensitive.** Stored names carry irregular capitalisation
+      (`Viz.Ai`, `Qure.AI`). Plain `=` fails silently: `company_name = 'Viz.ai'`
+      returns **no rows** for a company with ten clearances, and an empty result
+      is not the same as no clearances.
+    - **Anchored at a word boundary**, never an unanchored substring.
       `ILIKE '%GE Healthcare%'` also matches `Merge Healthcare` and
-      `Change Healthcare`, since the pattern occurs inside those words.
+      `Change Healthcare`, because the pattern occurs *inside* those words.
+      The `' %'` and `',%'` suffixes let `Aidoc` find `Aidoc Medical` and
+      `AIDOC MEDICAL , LTD.` without that risk.
+    - **Searches `applicant_raw` as well as `company_name`, then widens to the
+      whole company.** Entity resolution merged 13 groups of names that are one
+      company each, so former names no longer appear in `company_name` —
+      `Ischemaview`, `Caption Health`, `Kico Knee Innovation` and `Heartvista` all
+      return zero rows if you only search `company_name`. They still appear in
+      `applicant_raw`, which is never rewritten. The subquery finds the company by
+      any name it has ever filed under; the outer query then returns *all* of that
+      company's clearances, not just the ones filed under the name asked about.
 
-    If this matches more than one company and the question is about a single
-    company, that is ambiguity — `clarify` rather than silently summing them.
-    `Samsung` matches both `Samsung` and `Samsung Medison`, which are different
-    filers.
+    `Ischemaview` and `Ischema View` both return 20. `Caption Health` and
+    `Bay Labs` both return 6. `GE Healthcare` returns 95, with no Merge or Change
+    Healthcare rows.
 
 ## Columns
 
@@ -139,7 +159,7 @@ rules, not preferences — a correct number in the wrong shape is a failed answe
 |---|---|---|
 | `regnumber` | TEXT | FDA 510(k) number, e.g. `K213678`. Unique. Primary key. |
 | `pathway` | TEXT | Always `510(k)` in V1. Retained so the filter is visible. |
-| `applicant_raw` | TEXT | Company name exactly as filed. **Do not filter on this.** |
+| `applicant_raw` | TEXT | Company name exactly as filed, never rewritten. The only record of former names — see rule 10. |
 | `company_name` | TEXT | Normalized company. **The company dimension.** |
 | `company_name_source` | TEXT | Winning source under `SOURCE_PRECEDENCE`. Provenance, not analysis. |
 | `street`, `city`, `state`, `zip` | TEXT | Applicant address as filed. `state` is null for non-US filers. |
@@ -158,6 +178,7 @@ rules, not preferences — a correct number in the wrong shape is a failed answe
 | `third_party` | BOOLEAN | Reviewed under the Third Party Review Program. True for 19 rows. |
 | `year_received` | INTEGER | Year of `date_received`. |
 | `decision_year` | INTEGER | Year of `decision_date`. |
+| `pb_company_id` | TEXT | PitchBook company identifier, from the bridge. Null for 8 clearances. Provenance and join key — not an analytical dimension. |
 
 ## Column traps
 
@@ -188,14 +209,15 @@ value round-trips through. Still 44% null.
 
 ## Known defects, not yet resolved
 
-`company_name` is a function of `applicant_raw` for every applicant but three.
+`company_name` is a function of `applicant_raw` for every applicant but one.
 The `ming-mapping` precedence rule (owner ruling 2026-08-27) settled 13 of the 16
 original conflicts; see
 [`../open-questions/company-mapping.md`](../open-questions/company-mapping.md).
 
-Still split, because the authoritative source contradicts itself:
-`ITERATIVE SCOPES, INC.`, `SAMSUNG ELECTRONICS CO., LTD.`, `SOFTWARE NEMOTEC S.L.`
-Company-level aggregates for those six rows are unreliable until ruled on.
+`SAMSUNG ELECTRONICS CO., LTD.` legitimately spans two companies — PitchBook holds
+Samsung Electronics and Samsung Medison as separate firms.
 
-Part B of that document — whether subsidiaries roll up to parents — is unaffected
-by the precedence rule and remains open.
+Entity resolution via the PitchBook bridge merged 13 name groups on 2026-08-27,
+taking distinct companies from 473 to 459. Two parent/subsidiary rollups are
+deliberately **not** merged and remain open: GE Healthcare and its subsidiaries,
+and Fujifilm / Fujifilm Healthcare.

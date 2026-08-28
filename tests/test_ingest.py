@@ -288,3 +288,41 @@ def test_fda_rebuild_keeps_pitchbook_metadata():
         }
     assert any(k.startswith("pb_") for k in keys)
     assert "schema_version" in keys
+
+
+def test_former_names_remain_findable_via_applicant_raw():
+    """Merging must not make a company unfindable by its former name.
+
+    Entity resolution rewrites company_name, so `Ischemaview`, `Caption Health`,
+    `Kico Knee Innovation` and `Heartvista` no longer appear there. applicant_raw
+    is never rewritten, which is what contract rule 10 relies on.
+    """
+    sql = """
+    SELECT count(*) FROM fda_510k WHERE company_name IN (
+      SELECT DISTINCT company_name FROM fda_510k
+      WHERE lower(company_name)   = lower(?)  OR lower(company_name)  LIKE lower(?) || ' %'
+         OR lower(applicant_raw)  = lower(?)  OR lower(applicant_raw) LIKE lower(?) || ' %'
+         OR lower(applicant_raw) LIKE lower(?) || ',%')
+    """
+    with connect() as con:
+        for name, expected in [
+            ("Ischemaview", 20), ("Ischema View", 20),   # former and surviving name
+            ("Caption Health", 6), ("Bay Labs", 6),      # both resolve to one company
+            ("Kico Knee Innovation", 2), ("Heartvista", 2),
+        ]:
+            got = con.execute(sql, [name] * 5).fetchone()[0]
+            assert got == expected, f"{name}: got {got}, expected {expected}"
+
+
+def test_company_match_still_excludes_substring_false_positives():
+    """The anchored form must not reintroduce the Merge/Change Healthcare bug."""
+    sql = """
+    SELECT count(*) FROM fda_510k WHERE company_name IN (
+      SELECT DISTINCT company_name FROM fda_510k
+      WHERE lower(company_name)   = lower(?)  OR lower(company_name)  LIKE lower(?) || ' %'
+         OR lower(applicant_raw)  = lower(?)  OR lower(applicant_raw) LIKE lower(?) || ' %'
+         OR lower(applicant_raw) LIKE lower(?) || ',%')
+    """
+    with connect() as con:
+        assert con.execute(sql, ["GE Healthcare"] * 5).fetchone()[0] == 95
+        assert con.execute(sql, ["Merge Healthcare"] * 5).fetchone()[0] == 1
