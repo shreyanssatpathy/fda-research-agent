@@ -209,8 +209,12 @@ The distinction that matters is whether money reaches the company:
 ## Resolved: "capital raised" = venture rounds only (owner ruling, 2026-08-27)
 
 `VENTURE_DEAL_TYPES` = Seed Round, Angel (individual), Early Stage VC, Later Stage
-VC, Accelerator/Incubator, PE Growth/Expansion. **1,230 of 1,988 deals,
-$24,770.5m.**
+VC, Accelerator/Incubator, PE Growth/Expansion, Equity Crowdfunding.
+**1,240 of 1,988 deals, $24,800.0m.**
+
+Equity Crowdfunding was added 2026-08-27: primary capital into the company, same
+as any other round — the funding vehicle differs, the direction of the money does
+not. It is the only excluded type that was unambiguously company fundraising.
 
 Implemented as a **column (`is_venture_round`), not a filter.** The excluded rows
 are not junk — an acquisition or IPO is exactly what a research brief's corporate

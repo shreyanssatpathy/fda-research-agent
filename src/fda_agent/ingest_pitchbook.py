@@ -66,6 +66,9 @@ VENTURE_DEAL_TYPES = (
     "Later Stage VC",
     "Accelerator/Incubator",
     "PE Growth/Expansion",
+    # Added by owner 2026-08-27. Primary capital into the company, same as any
+    # other round; the funding vehicle differs, the direction of the money does not.
+    "Equity Crowdfunding",
 )
 
 DEAL_COLUMNS = {
