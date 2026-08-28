@@ -162,8 +162,10 @@ def _gaps(entity: Entity, funding: list[Fact], con) -> list[Gap]:
         gaps.append(
             Gap(
                 "funding_dates",
-                f"{len(undated)} funding round(s) have no date and are excluded "
-                "from any before/after comparison.",
+                f"{len(undated)} venture round(s) have no date and are excluded "
+                "from any before/after comparison. Non-venture deals (grants, "
+                "debt, PIPEs) are excluded from capital figures on deal-type "
+                "grounds regardless of date, so their dates are not tracked here.",
             )
         )
     return gaps
@@ -224,7 +226,7 @@ def funding_vs_first_clearance(db_path: Path = DB_PATH):
         WHERE is_venture_round AND deal_date IS NOT NULL
     ),
     undated AS (
-        SELECT company_id, count(*) AS undated_rounds
+        SELECT company_id, count(*) AS undated_venture_rounds
         FROM pb_deals WHERE is_venture_round AND deal_date IS NULL
         GROUP BY company_id
     )
@@ -236,7 +238,7 @@ def funding_vs_first_clearance(db_path: Path = DB_PATH):
            round(sum(d.deal_size_usd_m) FILTER (WHERE d.deal_date <  fc.first_clearance), 1) AS capital_before_usd_m,
            count(d.deal_date) FILTER (WHERE d.deal_date >= fc.first_clearance) AS rounds_after,
            round(sum(d.deal_size_usd_m) FILTER (WHERE d.deal_date >= fc.first_clearance), 1) AS capital_after_usd_m,
-           coalesce(any_value(u.undated_rounds), 0) AS undated_rounds
+           coalesce(any_value(u.undated_venture_rounds), 0) AS undated_venture_rounds
     FROM first_clearance fc
     LEFT JOIN deals d ON d.company_id = fc.pb_company_id
     LEFT JOIN undated u ON u.company_id = fc.pb_company_id

@@ -31,19 +31,31 @@ answer, not the ingredients** — there is no join here to get wrong.
    first clearance" is a statistic about the 289 companies with funding data, not
    about all 459. State the denominator.
 4. **Undated rounds are in neither before nor after, and any capital aggregate
-   must say how many are affected.** `undated_rounds` counts venture rounds with
+   must say how many are affected.** `undated_venture_rounds` counts venture rounds with
    no date. They are excluded from both buckets, because a deal that cannot be
    placed in time cannot be called "before" or "after".
 
-   This is not a footnote: **25 companies hold 26 undated rounds worth $211.1m
-   that no before/after figure includes.** (PitchBook holds 29 undated venture
-   rounds in total; 26 belong to companies that appear in the FDA data.) Their `capital_before_usd_m` is
+   This is not a footnote: **25 companies hold 26 undated venture rounds worth
+   $211.1m that no before/after figure includes.** (PitchBook holds 29 undated
+   venture rounds in total; 26 belong to companies in the FDA data.)
+
+   **The column counts venture rounds only, which is what its name says.** 14
+   further deals have no date but are not venture rounds — 9 grants, plus debt,
+   PIPE, capitalization and secondary rows. Those are excluded from every capital
+   figure on **deal-type** grounds (rule 1), not date grounds, so their missing
+   dates change nothing. Fitbit is the clearest example: one undated $0.1m grant,
+   `undated_venture_rounds = 0`, and no capital figure affected either way.
+
+   The consequence to state honestly: **37 FDA companies have an undated deal of
+   some kind; 25 of them show it here.** If a question is about data completeness
+   rather than capital, this column is the wrong instrument and the answer should
+   say so. Their `capital_before_usd_m` is
    therefore understated, and a median or mean over that column inherits the
    understatement silently.
 
    So any query aggregating `capital_before_usd_m` or `capital_after_usd_m`
-   **must** also select `sum(undated_rounds)` or
-   `count(*) FILTER (WHERE undated_rounds > 0)`, and the answer must state it.
+   **must** also select `sum(undated_venture_rounds)` or
+   `count(*) FILTER (WHERE undated_venture_rounds > 0)`, and the answer must state it.
    Reporting a median of pre-clearance capital without noting how many companies
    have unplaceable rounds presents an understated figure as a complete one.
 5. **This table has no device, product-code or deal-type detail.** Questions about
@@ -62,7 +74,7 @@ answer, not the ingredients** — there is no join here to get wrong.
 | `capital_before_usd_m` | DOUBLE | Their sum, USD millions. **NULL when `rounds_before = 0`.** |
 | `rounds_after` | BIGINT | Dated venture rounds on or after `first_clearance`. |
 | `capital_after_usd_m` | DOUBLE | Their sum. **NULL when `rounds_after = 0`.** |
-| `undated_rounds` | BIGINT | Venture rounds with no date. In neither bucket. |
+| `undated_venture_rounds` | BIGINT | Venture rounds with no date. In neither bucket. |
 
 "Venture rounds" means `is_venture_round` in `pb_deals`: Seed, Angel, Early/Later
 Stage VC, Accelerator/Incubator, PE Growth/Expansion, Equity Crowdfunding. Share

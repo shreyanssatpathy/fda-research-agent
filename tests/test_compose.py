@@ -251,7 +251,7 @@ def test_cohort_round_counts_reconcile_with_the_deal_table(cohort):
 
     for row in cohort.itertuples():
         expected = truth.get(row.company_name, 0)
-        got = row.rounds_before + row.rounds_after + row.undated_rounds
+        got = row.rounds_before + row.rounds_after + row.undated_venture_rounds
         assert got == expected, row.company_name
 
 
@@ -275,16 +275,16 @@ def test_cohort_agrees_with_the_single_company_profile():
         )
 
 
-def test_undated_rounds_are_excluded_from_before_and_after(cohort):
+def test_undated_venture_rounds_are_excluded_from_before_and_after(cohort):
     """A deal with no date cannot be called before or after anything."""
-    assert (cohort["undated_rounds"] >= 0).all()
-    assert cohort["undated_rounds"].sum() > 0, "expected some undated rounds in the data"
+    assert (cohort["undated_venture_rounds"] >= 0).all()
+    assert cohort["undated_venture_rounds"].sum() > 0, "expected some undated rounds in the data"
 
 
 # --- undated rounds must stay visible ----------------------------------------------
 
 
-def test_undated_rounds_are_counted_not_dropped(cohort):
+def test_undated_venture_rounds_are_counted_not_dropped(cohort):
     """Capital that cannot be placed in time must remain visible.
 
     26 rounds worth $211.1m belong to FDA companies but have no date. They are
@@ -301,16 +301,16 @@ def test_undated_rounds_are_counted_not_dropped(cohort):
                                    WHERE pb_company_id IS NOT NULL)
             """
         ).fetchone()[0]
-    assert cohort["undated_rounds"].sum() == truth
-    assert (cohort["undated_rounds"] > 0).sum() == 25
+    assert cohort["undated_venture_rounds"].sum() == truth
+    assert (cohort["undated_venture_rounds"] > 0).sum() == 25
 
 
-def test_profile_reports_undated_rounds_as_a_gap():
+def test_profile_reports_undated_venture_rounds_as_a_gap():
     """A company whose funding cannot be fully placed in time must say so."""
     from fda_agent.compose import funding_vs_first_clearance
 
     affected = funding_vs_first_clearance()
-    name = affected[affected["undated_rounds"] > 0]["company_name"].iloc[0]
+    name = affected[affected["undated_venture_rounds"] > 0]["company_name"].iloc[0]
     profile = company_profile(name)
     topics = {g.topic for g in profile.evidence.gaps}
     assert "funding_dates" in topics
@@ -322,8 +322,58 @@ def test_undated_facts_carry_no_guessed_date():
     from fda_agent.compose import funding_vs_first_clearance
 
     affected = funding_vs_first_clearance()
-    name = affected[affected["undated_rounds"] > 0]["company_name"].iloc[0]
+    name = affected[affected["undated_venture_rounds"] > 0]["company_name"].iloc[0]
     profile = company_profile(name)
     undated = [f for f in profile.evidence.of_type("FUNDING_ROUND") if f.date is None]
     assert undated, "expected at least one undated round"
     assert all(f.source_id for f in undated), "still sourced, just undated"
+
+
+def test_undated_column_counts_venture_rounds_only():
+    """The name is the contract.
+
+    Fitbit has an undated Grant, so it *does* have a deal with no date — but grants
+    are not venture rounds, so `undated_venture_rounds` is 0. That is correct: the
+    grant is excluded from capital on deal-type grounds regardless of its date.
+    A column called `undated_rounds` invited the opposite reading.
+    """
+    from fda_agent.compose import funding_vs_first_clearance
+
+    with connect() as con:
+        fitbit_undated = con.execute(
+            """
+            SELECT count(*) FROM pb_deals d JOIN pb_companies c USING (company_id)
+            WHERE c.company_name_pb ILIKE 'Fitbit%' AND d.deal_date IS NULL
+            """
+        ).fetchone()[0]
+        fitbit_undated_venture = con.execute(
+            """
+            SELECT count(*) FROM pb_deals d JOIN pb_companies c USING (company_id)
+            WHERE c.company_name_pb ILIKE 'Fitbit%' AND d.deal_date IS NULL
+              AND d.is_venture_round
+            """
+        ).fetchone()[0]
+
+    assert fitbit_undated == 1, "Fitbit should have one undated deal"
+    assert fitbit_undated_venture == 0, "...and it is not a venture round"
+
+    df = funding_vs_first_clearance().set_index("company_name")
+    assert df.loc["Fitbit", "undated_venture_rounds"] == 0
+
+
+def test_non_venture_undated_deals_exist_and_are_out_of_scope():
+    """Documented blind spot: 37 companies have an undated deal, 25 are flagged."""
+    with connect() as con:
+        any_undated = con.execute(
+            """
+            SELECT count(DISTINCT f.company_name) FROM fda_510k f
+            JOIN pb_deals d ON d.company_id = f.pb_company_id
+            WHERE d.deal_date IS NULL
+            """
+        ).fetchone()[0]
+        flagged = con.execute(
+            "SELECT count(*) FROM company_funding_timeline "
+            "WHERE undated_venture_rounds > 0"
+        ).fetchone()[0]
+    assert any_undated == 37
+    assert flagged == 25
