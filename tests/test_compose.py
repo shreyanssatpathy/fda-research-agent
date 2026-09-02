@@ -377,3 +377,144 @@ def test_non_venture_undated_deals_exist_and_are_out_of_scope():
         ).fetchone()[0]
     assert any_undated == 37
     assert flagged == 25
+
+
+# --- views replacing the materialised table (2026-09-02) ---------------------------
+
+
+def test_both_cross_source_objects_are_views_not_tables():
+    """Views cannot go stale and need no rebuild step."""
+    with connect() as con:
+        kinds = dict(
+            con.execute(
+                "SELECT table_name, table_type FROM information_schema.tables "
+                "WHERE table_name IN ('company_funding_timeline', 'v_company_deals')"
+            ).fetchall()
+        )
+    assert kinds == {"company_funding_timeline": "VIEW", "v_company_deals": "VIEW"}
+
+
+def test_deal_view_is_one_row_per_venture_round():
+    with connect() as con:
+        rows, deals = con.execute(
+            "SELECT count(*), count(DISTINCT deal_id) FROM v_company_deals"
+        ).fetchone()
+        truth = con.execute(
+            """
+            SELECT count(*) FROM pb_deals d WHERE d.is_venture_round
+              AND d.company_id IN (SELECT DISTINCT pb_company_id FROM fda_510k
+                                   WHERE pb_company_id IS NOT NULL)
+            """
+        ).fetchone()[0]
+    assert rows == deals == truth == 1159
+
+
+def test_deal_view_capital_is_not_inflated():
+    """Attaching company attributes to deal rows is many-to-one: no fan-out."""
+    with connect() as con:
+        via_view = con.execute(
+            "SELECT round(sum(deal_size_usd_m), 1) FROM v_company_deals"
+        ).fetchone()[0]
+        truth = con.execute(
+            """
+            SELECT round(sum(d.deal_size_usd_m), 1) FROM pb_deals d
+            WHERE d.is_venture_round AND d.company_id IN
+              (SELECT DISTINCT pb_company_id FROM fda_510k WHERE pb_company_id IS NOT NULL)
+            """
+        ).fetchone()[0]
+    assert via_view == pytest.approx(truth, rel=0.001)
+
+
+def test_company_attributes_repeat_on_deal_rows():
+    """The documented footgun, pinned so the contract's warning stays true.
+
+    Aidoc: 31 clearances, 7 rounds. sum(total_clearances) is 217 and wrong;
+    any_value is 31 and right. Deal columns remain safe to sum.
+    """
+    with connect() as con:
+        r = con.execute(
+            """
+            SELECT count(*) AS rows, sum(total_clearances) AS summed,
+                   any_value(total_clearances) AS correct,
+                   round(sum(deal_size_usd_m), 1) AS capital
+            FROM v_company_deals WHERE company_name = 'Aidoc Medical'
+            """
+        ).fetchone()
+    rows, summed, correct, capital = r
+    assert rows == 7
+    assert correct == 31
+    assert summed == 31 * 7
+    assert capital == pytest.approx(420.3, abs=0.1)
+
+
+def test_company_view_still_matches_the_pre_view_figures():
+    """The refactor must not move any number the old table produced."""
+    with connect() as con:
+        r = con.execute(
+            """
+            SELECT count(*), count(*) FILTER (WHERE rounds_before > 0),
+                   round(median(capital_before_usd_m), 1),
+                   sum(undated_venture_rounds)
+            FROM company_funding_timeline
+            """
+        ).fetchone()
+    assert r == (459, 289, 7.8, 26)
+
+
+def test_funding_dates_are_now_available():
+    """The columns whose absence made the timing question unanswerable."""
+    with connect() as con:
+        cols = {
+            c[0]
+            for c in con.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'company_funding_timeline'"
+            ).fetchall()
+        }
+    assert {"first_funding_date", "last_funding_date",
+            "days_first_funding_to_first_clearance"} <= cols
+
+
+def test_time_from_first_funding_to_first_clearance_is_computable():
+    """The originally-refused question, now answerable from the view alone."""
+    with connect() as con:
+        r = con.execute(
+            """
+            SELECT count(*), round(avg(days_first_funding_to_first_clearance) / 365.25, 2)
+            FROM company_funding_timeline
+            WHERE year(first_clearance) >= 2025
+              AND days_first_funding_to_first_clearance > 0
+            """
+        ).fetchone()
+    assert r[0] == 52
+    assert r[1] == pytest.approx(6.15, abs=0.01)
+
+
+def test_unfunded_companies_survive_in_the_company_view():
+    """LEFT JOIN — companies with no venture rounds must not vanish.
+
+    148, not the 120 quoted in earlier notes: that figure counted companies with
+    no deal of *any* type, but these views are venture-only. 147 have no venture
+    round; one more has only an undated one, so it has no first_funding_date.
+    """
+    with connect() as con:
+        no_date, no_rounds = con.execute(
+            """
+            SELECT count(*) FILTER (WHERE first_funding_date IS NULL),
+                   count(*) FILTER (WHERE rounds_before = 0 AND rounds_after = 0
+                                      AND undated_venture_rounds = 0)
+            FROM company_funding_timeline
+            """
+        ).fetchone()
+    assert no_rounds == 147
+    assert no_date == 148
+    assert no_date > no_rounds, "the extra company has only an undated round"
+
+
+def test_views_survive_a_rebuild():
+    """An earlier build left a TABLE here; DuckDB errors on DROP TABLE for a view."""
+    from fda_agent.compose import create_views
+
+    counts = create_views()
+    assert counts == {"v_company_deals": 1159, "company_funding_timeline": 459}
+    assert create_views() == counts, "create_views must be idempotent"

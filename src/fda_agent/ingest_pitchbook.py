@@ -276,9 +276,11 @@ def load(
         con.close()
 
     # The cross-source table depends on both loaders having run.
-    from fda_agent.compose import materialize_timeline
+    from fda_agent.compose import create_views
 
-    meta["timeline_rows"] = materialize_timeline(db_path)
+    meta.update(
+        {f"view_{k}_rows": v for k, v in create_views(db_path).items()}
+    )
 
     if echo:
         print("cleaning funnel:")

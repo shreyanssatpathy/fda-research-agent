@@ -150,8 +150,35 @@ entity from every source — assembly, not a query — so it runs
 Routing is content-hash cached like every other model call, so a repeated question
 costs nothing and consumes no budget.
 
+## Views, not a materialised table (changed 2026-09-02)
+
+The cross-source layer was a table that pre-aggregated deals into before/after
+buckets. That made "average time from first funding to first approval"
+unanswerable: the deal dates existed in the inputs and did not survive the
+aggregation.
+
+The lesson is a separation I had not made:
+
+| decision | necessary? |
+|---|---|
+| **fix the grain** — one row per company at first approval | **yes** — this is what prevents fan-out |
+| **pre-aggregate the measures** — counts and sums only | **no** — a bet on which questions would be asked |
+
+Only the first is load-bearing. Views fix the grain without the bet, cannot go
+stale, and need no rebuild. `create_views()` now defines two, both venture-only
+and both anchored on first approval, with the company view derived from the deal
+view so they cannot drift.
+
+Attaching *company* attributes to *deal* rows is many-to-one and does not fan out
+— verified: summing `deal_size_usd_m` over `v_company_deals` reproduces the deal
+table's total exactly. What it does introduce is a counting trap: company columns
+repeat per deal row and must never be summed. Documented in the contract and
+pinned by a test.
+
 ## Not yet built
 
+- **An eval set for the `timeline` route.** FDA and PitchBook each have frozen
+  sets; the cross-source route has none, so its answers are unmeasured.
 - **Narrative synthesis.** Evidence is assembled but not written up; `profile`
   currently returns a one-line summary and the fact list.
 - **Post-clearance trajectory questions** beyond the before/after split — e.g.

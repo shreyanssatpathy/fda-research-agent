@@ -1,11 +1,52 @@
-# Contract: `company_funding_timeline`
+# Contract: `company_funding_timeline` and `v_company_deals`
 
-The cross-source table. One row per company, anchored on its **first FDA
-clearance**, with venture funding split before and after.
+The cross-source objects. Both anchored on each company's **first FDA clearance**,
+covering venture rounds only.
 
-- schema_version: `1.0.0`
-- rows: **459 — one per company in `fda_510k`**
-- built by `compose.materialize_timeline()` after both loaders run
+- schema_version: `2.0.0`
+- `company_funding_timeline` — **459 rows, one per company**
+- `v_company_deals` — **1,159 rows, one per venture round**
+- both are **SQL views**, defined by `compose.create_views()`
+
+## Two grains — pick the one the question needs
+
+| object | grain | use for |
+|---|---|---|
+| `company_funding_timeline` | one company | anything counted or averaged *across companies* — medians, cohorts, "how many companies…" |
+| `v_company_deals` | one venture round | anything about individual rounds — sizes, types, timing between a round and first clearance |
+
+Joining them on `company_name` is permitted and safe (many rounds to one company).
+
+### Why views, not a materialised table (changed 2026-09-02)
+
+The previous version was a table that pre-aggregated deals into before/after
+buckets and **discarded every deal date**. "Average time from first funding to
+first approval" was therefore unanswerable — the dates existed in the inputs and
+did not survive the aggregation.
+
+Fixing the *grain* is what prevents fan-out; pre-aggregating the *measures* was a
+bet on which questions would be asked, and it lost. Views fix the grain without
+the bet, cannot go stale, and need no rebuild step. At 459 companies the
+recomputation is immaterial.
+
+### The counting rule for `v_company_deals`
+
+Company attributes (`first_clearance`, `total_clearances`) are denormalised onto
+**every one of that company's deal rows**. Aidoc has 31 clearances and 7 rounds,
+so `total_clearances = 31` appears 7 times.
+
+- `sum(total_clearances)` returns **217**. Wrong.
+- `any_value(total_clearances)` returns **31**. Right.
+- `count(*)` counts **deals** — not companies, not clearances.
+- `sum(deal_size_usd_m)` is correct: each deal appears exactly once.
+
+**Deal columns are safe to aggregate. Company columns are not.** For any
+company-level count or average, use `company_funding_timeline` instead.
+
+### Why 1,159 and not 1,240
+
+`pb_deals` holds 1,240 venture rounds. The 81 excluded belong to PitchBook
+companies with no FDA clearance — there is no first approval to anchor them to.
 
 ## Why this table exists
 
@@ -19,12 +60,16 @@ answer, not the ingredients** — there is no join here to get wrong.
 
 ## Rules the generated SQL must follow
 
-1. **Never join this table to `fda_510k` or `pb_deals`.** Neither is available to
-   you, and re-joining would reintroduce exactly the fan-out this table exists to
-   remove. Every column you need is here.
+1. **Never join these views to `fda_510k` or `pb_deals`.** Neither is available
+   to you, and re-joining would reintroduce exactly the fan-out these views exist
+   to remove. Joining the two views to each other on `company_name` is fine.
 2. **`NULL` capital means unknown, not zero.** A company with `rounds_before = 0`
    has `capital_before_usd_m = NULL`. Never `coalesce(..., 0)` and never report it
-   as "raised $0" — 120 of the 459 companies have no funding data at all.
+   as "raised $0" — **147 of the 459 companies have no venture round here at
+   all**, and a further 1 has only an undated one, so 148 have no
+   `first_funding_date`. (An earlier version of this contract said 120. That
+   figure counted companies with no deal of *any* type; these views carry venture
+   rounds only, so the correct number is higher. Corrected 2026-09-02.)
    `avg()` and `median()` already skip NULLs, which is correct; `sum()` treating
    them as zero is fine, but the *count* of contributing companies must be stated.
 3. **Say how many companies a statistic covers.** "Median capital raised before
@@ -75,6 +120,25 @@ answer, not the ingredients** — there is no join here to get wrong.
 | `rounds_after` | BIGINT | Dated venture rounds on or after `first_clearance`. |
 | `capital_after_usd_m` | DOUBLE | Their sum. **NULL when `rounds_after = 0`.** |
 | `undated_venture_rounds` | BIGINT | Venture rounds with no date. In neither bucket. |
+| `first_funding_date` | DATE | Earliest dated venture round. NULL when none. |
+| `last_funding_date` | DATE | Latest dated venture round. NULL when none. |
+| `days_first_funding_to_first_clearance` | BIGINT | Days from first round to first clearance. **Negative** when the first round came after clearance. NULL when either date is missing. |
+
+## `v_company_deals` columns
+
+| column | type | meaning |
+|---|---|---|
+| `deal_id` | TEXT | PitchBook deal identifier. Unique. |
+| `company_name` | TEXT | FDA canonical name. Repeats per round. |
+| `pb_company_id` | TEXT | PitchBook identifier. Repeats per round. |
+| `deal_date` | DATE | Date of the round. **26 rows are NULL.** |
+| `deal_type` | TEXT | Seed, Angel, Early/Later Stage VC, Accelerator/Incubator, PE Growth/Expansion, Equity Crowdfunding. |
+| `deal_size_usd_m` | DOUBLE | USD millions. Never null. Safe to sum. |
+| `deal_size_status` | TEXT | `Actual` or `Estimated`. |
+| `first_clearance` | DATE | The company's first clearance. **Company attribute — do not sum.** |
+| `total_clearances` | BIGINT | The company's clearance count. **Company attribute — do not sum.** |
+| `days_to_first_clearance` | BIGINT | Days from this round to first clearance. Negative for post-clearance rounds. NULL when undated. |
+| `is_before_first_clearance` | BOOLEAN | NULL when the round is undated. |
 
 "Venture rounds" means `is_venture_round` in `pb_deals`: Seed, Angel, Early/Later
 Stage VC, Accelerator/Incubator, PE Growth/Expansion, Equity Crowdfunding. Share
@@ -95,7 +159,9 @@ for distributions.
 | companies | 459 |
 | with funding before first clearance | **289** |
 | with any venture funding recorded | 332 |
-| no funding data at all | 120 |
+| no venture round at all | 147 |
+| no `first_funding_date` (adds one with only an undated round) | 148 |
+| not in the FDA-to-PitchBook bridge | 7 |
 | outside the venture universe by design | GE Healthcare, Siemens, Philips, Medtronic |
 
 Totals here are **floors**: undisclosed rounds were dropped at load, so a company
@@ -106,5 +172,5 @@ raised *at least* what this table says.
 - **Device, product-code or specialty questions** — not in this table.
 - **Deal-type or investor questions** — not in this table.
 - **"Which companies raised nothing"** — indistinguishable here from companies
-  with no data. Report the 120 as unmeasured, not unfunded.
+  with no data. Report the 147 as unmeasured, not unfunded.
 - **Anything implying these totals are complete.** See floors, above.

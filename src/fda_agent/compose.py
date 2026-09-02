@@ -249,26 +249,99 @@ def funding_vs_first_clearance(db_path: Path = DB_PATH):
         return con.execute(sql).df()
 
 
-def materialize_timeline(db_path: Path = DB_PATH) -> int:
-    """Persist the cohort frame as `company_funding_timeline`.
+def create_views(db_path: Path = DB_PATH) -> dict[str, int]:
+    """Define the cross-source objects as SQL views.
 
-    Materialising it is what makes cross-source questions safe to generate SQL
-    for. The fan-out has already been resolved here, once, by code with tests
-    around it — so the model queries a single table and has no join available to
-    get wrong. It is the composition layer's output, not another thing to join.
+    Two grains, both anchored on first approval, so the FDA side contributes one
+    row per company and the join to deals is 1:many — it never multiplies.
+
+    - `v_company_deals`      one row per venture round
+    - `company_funding_timeline`  one row per company, derived from the above
+
+    **Views, not tables.** The earlier materialised table pre-aggregated deals into
+    before/after buckets and threw away every deal date, which made
+    "time from first funding to first approval" unanswerable — the data was in the
+    inputs and did not survive the aggregation. A view fixes the grain (the part
+    that prevents fan-out) without betting on which measures will be wanted.
+
+    At 459 companies the recomputation is trivial, and views cannot go stale or
+    need rebuilding after a reload.
     """
     import duckdb
 
-    df = funding_vs_first_clearance(db_path)
     con = duckdb.connect(str(db_path))
     try:
-        con.register("staged", df)
-        con.execute("DROP TABLE IF EXISTS company_funding_timeline")
-        con.execute(
-            "CREATE TABLE company_funding_timeline AS "
-            "SELECT * EXCLUDE (first_clearance), "
-            "       CAST(first_clearance AS DATE) AS first_clearance FROM staged"
-        )
+        # DuckDB errors rather than no-opping when the object is the other kind,
+        # so ask the catalog first. Earlier builds left a TABLE here; a rebuild
+        # must migrate it to a view without failing.
+        for name in ("company_funding_timeline", "v_company_deals"):
+            kind = con.execute(
+                "SELECT table_type FROM information_schema.tables WHERE table_name = ?",
+                [name],
+            ).fetchone()
+            if kind is None:
+                continue
+            keyword = "VIEW" if kind[0] == "VIEW" else "TABLE"
+            con.execute(f"DROP {keyword} IF EXISTS {name}")
+
+        # Deal grain. Company attributes are denormalised onto each row, which is
+        # safe to join but NOT safe to sum — see the contract's counting rule.
+        con.execute(f"""
+        CREATE VIEW v_company_deals AS
+        WITH {FIRST_CLEARANCE_CTE}
+        SELECT
+            d.deal_id,
+            fc.company_name,
+            fc.pb_company_id,
+            d.deal_date,
+            d.deal_type,
+            d.deal_size_usd_m,
+            d.deal_size_status,
+            fc.first_clearance,
+            fc.total_clearances,
+            date_diff('day', d.deal_date, fc.first_clearance) AS days_to_first_clearance,
+            d.deal_date < fc.first_clearance                  AS is_before_first_clearance
+        FROM first_clearance fc
+        JOIN pb_deals d ON d.company_id = fc.pb_company_id
+        WHERE d.{VENTURE_FILTER}
+        """)
+
+        # Company grain, derived from the deal view so the two cannot drift.
+        # LEFT JOIN keeps all 459 companies, including those with no deals.
+        con.execute(f"""
+        CREATE VIEW company_funding_timeline AS
+        WITH {FIRST_CLEARANCE_CTE}
+        SELECT
+            fc.company_name,
+            fc.pb_company_id,
+            fc.first_clearance,
+            fc.total_clearances,
+            min(v.deal_date)                                        AS first_funding_date,
+            max(v.deal_date)                                        AS last_funding_date,
+            count(v.deal_date) FILTER (WHERE v.is_before_first_clearance)      AS rounds_before,
+            round(sum(v.deal_size_usd_m) FILTER (WHERE v.is_before_first_clearance), 1) AS capital_before_usd_m,
+            count(v.deal_date) FILTER (WHERE NOT v.is_before_first_clearance)  AS rounds_after,
+            round(sum(v.deal_size_usd_m) FILTER (WHERE NOT v.is_before_first_clearance), 1) AS capital_after_usd_m,
+            count(*) FILTER (WHERE v.deal_id IS NOT NULL AND v.deal_date IS NULL) AS undated_venture_rounds,
+            date_diff('day', min(v.deal_date), fc.first_clearance)  AS days_first_funding_to_first_clearance
+        FROM first_clearance fc
+        LEFT JOIN v_company_deals v ON v.company_name = fc.company_name
+        GROUP BY 1, 2, 3, 4
+        """)
+
+        counts = {
+            "v_company_deals": con.execute(
+                "SELECT count(*) FROM v_company_deals"
+            ).fetchone()[0],
+            "company_funding_timeline": con.execute(
+                "SELECT count(*) FROM company_funding_timeline"
+            ).fetchone()[0],
+        }
     finally:
         con.close()
-    return len(df)
+    return counts
+
+
+def materialize_timeline(db_path: Path = DB_PATH) -> int:
+    """Back-compatible entry point. Creates the views and reports company rows."""
+    return create_views(db_path)["company_funding_timeline"]

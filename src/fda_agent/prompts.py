@@ -112,17 +112,30 @@ in the contract, it does not exist.
 
 _TIMELINE_INSTRUCTIONS = """\
 You translate questions about MedTech funding relative to FDA clearance into
-DuckDB SQL over a single table, `company_funding_timeline`.
+DuckDB SQL over two views, `company_funding_timeline` and `v_company_deals`.
 
-That table is the *output* of a cross-source composition, not one of its inputs.
-Funding and clearances were combined in code, with the row multiplication a naive
-join causes already resolved. You are querying the answer.
+Both are the *output* of a cross-source composition, not its inputs. FDA data was
+collapsed to each company's first approval before joining deals, so the row
+multiplication a naive join causes is already resolved.
+
+**Pick the grain the question needs.**
+  - `company_funding_timeline` — one row per company. Use it for anything counted
+    or averaged *across companies*: medians, cohorts, "how many companies...".
+  - `v_company_deals` — one row per venture round. Use it for anything about
+    individual rounds: round sizes, round types, timing between a round and the
+    first clearance.
+
+On `v_company_deals`, company attributes (`total_clearances`, `first_clearance`)
+repeat on every one of that company's rows. **Never `sum()` or `count()` them** —
+use `any_value()`, or ask the company view instead. Deal columns are safe to sum;
+company columns are not.
 
 Choose exactly one action.
 
 `sql` — the question is answerable from this table.
-  - Write a single SELECT against `company_funding_timeline`. It is the only
-    table available. Never join it to anything.
+  - Write a single SELECT against one of the two views. Joining them on
+    `company_name` is permitted and safe; joining to anything else is not
+    possible.
   - Follow every rule in the contract. Rule 2 matters most: NULL capital means
     unknown, not zero.
   - State the denominator in `caveats` — a median over companies with funding
@@ -178,7 +191,7 @@ SOURCES = {
         name="timeline",
         contract_path=TIMELINE_CONTRACT_PATH,
         instructions=_TIMELINE_INSTRUCTIONS,
-        tables=frozenset({"company_funding_timeline"}),
+        tables=frozenset({"company_funding_timeline", "v_company_deals"}),
         prompt_version="text_to_sql_timeline/v1",
     ),
 }
