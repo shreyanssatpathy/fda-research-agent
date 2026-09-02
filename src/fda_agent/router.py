@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 from fda_agent.config import MODEL_ID
 from fda_agent.llm.budget import Budget
 from fda_agent.llm.cache import ResponseCache, cache_key
+from fda_agent.llm.errors import translate_api_errors
 
 ROUTER_VERSION = "router/v1"
 
@@ -118,14 +119,15 @@ def route_question(
 
     from fda_agent.llm.budget import Usage
 
-    response = client.messages.parse(
-        model=MODEL_ID,
-        max_tokens=1024,
-        system=[{"type": "text", "text": _INSTRUCTIONS,
-                 "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": question}],
-        output_format=Route,
-    )
+    with translate_api_errors():
+        response = client.messages.parse(
+            model=MODEL_ID,
+            max_tokens=1024,
+            system=[{"type": "text", "text": _INSTRUCTIONS,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": question}],
+            output_format=Route,
+        )
     decision = response.parsed_output
     cost = budget.record(
         Usage(

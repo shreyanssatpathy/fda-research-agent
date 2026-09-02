@@ -16,6 +16,7 @@ from fda_agent import config
 from fda_agent.config import SCHEMA_VERSION
 from fda_agent.llm.budget import Budget, BudgetExceeded, Usage
 from fda_agent.llm.cache import ResponseCache, cache_key
+from fda_agent.llm.errors import LLMUnavailable, translate_api_errors
 from fda_agent.prompts import (
     Source,
     build_system_prompt_for,
@@ -104,7 +105,8 @@ def _default_client():
     # a plain API key the header has to be sent explicitly.
     workspace = os.environ.get("ANTHROPIC_WORKSPACE_ID")
     headers = {"anthropic-workspace-id": workspace} if workspace else None
-    return anthropic.Anthropic(default_headers=headers)
+    # 2 is the SDK default; a transient overload often outlasts it.
+    return anthropic.Anthropic(default_headers=headers, max_retries=4)
 
 
 # `output_config.effort` is rejected by models that predate it (Haiku 4.5 returns
@@ -181,19 +183,21 @@ def generate(
     extra = (
         {"output_config": {"effort": effective_effort}} if effective_effort else {}
     )
-    response = client.messages.parse(
-        model=config.MODEL_ID,
-        max_tokens=4096,
-        system=[
-            # Stable prefix: the contract does not change between questions, so
-            # it is worth caching server-side. The question goes in messages,
-            # after the breakpoint.
-            {"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}
-        ],
-        messages=[{"role": "user", "content": question}],
-        output_format=SqlDecision,
-        **extra,
-    )
+    with translate_api_errors():
+        response = client.messages.parse(
+            model=config.MODEL_ID,
+            max_tokens=4096,
+            system=[
+                # Stable prefix: the contract does not change between questions,
+                # so it is worth caching server-side. The question goes in
+                # messages, after the breakpoint.
+                {"type": "text", "text": system,
+                 "cache_control": {"type": "ephemeral"}}
+            ],
+            messages=[{"role": "user", "content": question}],
+            output_format=SqlDecision,
+            **extra,
+        )
 
     decision = response.parsed_output
     usage = Usage(

@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from fda_agent.llm.budget import Budget, BudgetExceeded
+from fda_agent.llm.budget import Budget, BudgetExceeded, LedgerCorrupted
+from fda_agent.llm.errors import LLMUnavailable
 from fda_agent.query import QueryTimeout, run as run_sql
 from fda_agent.sql_guard import SqlValidationError
 from fda_agent.prompts import get_source
@@ -26,7 +27,10 @@ from fda_agent.text_to_sql import Generation, MissingCredentials, generate
 # clarify   - the question is ambiguous; the system is asking back
 # blocked   - generated SQL failed validation (a safety event worth surfacing)
 # error     - execution or budget failure
-OUTCOMES = ("answered", "empty", "refused", "clarify", "blocked", "error")
+# unavailable - the model could not be reached; the question is fine, retry it
+OUTCOMES = (
+    "answered", "empty", "refused", "clarify", "blocked", "unavailable", "error",
+)
 
 
 @dataclass
@@ -68,6 +72,12 @@ def answer(
         return Answer(question, "error", str(err))
     except BudgetExceeded as err:
         return Answer(question, "error", f"Spend ceiling reached. {err}")
+    except LedgerCorrupted as err:
+        return Answer(question, "error", str(err))
+    except LLMUnavailable as err:
+        return Answer(
+            question, "unavailable" if err.retryable else "error", str(err)
+        )
 
     base = dict(
         question=question,

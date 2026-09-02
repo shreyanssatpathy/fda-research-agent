@@ -18,7 +18,8 @@ import pandas as pd
 
 from fda_agent.answer import Answer, answer
 from fda_agent.compose import Profile, company_profile
-from fda_agent.llm.budget import Budget, BudgetExceeded
+from fda_agent.llm.budget import Budget, BudgetExceeded, LedgerCorrupted
+from fda_agent.llm.errors import LLMUnavailable
 from fda_agent.router import Routing, route_question
 from fda_agent.text_to_sql import MissingCredentials
 
@@ -54,6 +55,15 @@ def research(question: str, *, budget: Budget | None = None) -> Research:
         return Research(question, outcome="error", message=str(err))
     except BudgetExceeded as err:
         return Research(question, outcome="error", message=f"Spend ceiling reached. {err}")
+    except LedgerCorrupted as err:
+        return Research(question, outcome="error", message=str(err))
+    except LLMUnavailable as err:
+        # An outage upstream is not a crash in this application.
+        return Research(
+            question,
+            outcome="unavailable" if err.retryable else "error",
+            message=str(err),
+        )
 
     if routing.route == "refuse":
         return Research(question, routing=routing, outcome="refused", message=routing.reason)

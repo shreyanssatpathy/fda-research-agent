@@ -173,3 +173,77 @@ def test_router_is_cached_and_free_on_repeat(tmp_path):
     assert calls["n"] == 1
     assert not first.cached and second.cached
     assert budget.spent_usd == spent
+
+
+# --- upstream outages are not crashes (529 seen in the app, 2026-09-02) -------------
+
+
+def _raising_client(exc):
+    class Stub:
+        def __init__(self):
+            self.messages = SimpleNamespace(parse=self._parse)
+
+        def _parse(self, **kw):
+            raise exc
+
+    return Stub()
+
+
+def _api_error(status: int):
+    import anthropic
+    import httpx2 as httpx
+
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    response = httpx.Response(status, request=request, json={"error": {"message": "x"}})
+    return anthropic.APIStatusError("boom", response=response, body=None)
+
+
+@pytest.mark.parametrize("status,retryable", [(529, True), (500, True), (429, True),
+                                              (401, False), (400, False)])
+def test_api_errors_become_typed_and_classified(status, retryable):
+    from fda_agent.llm.errors import LLMUnavailable, translate_api_errors
+
+    with pytest.raises(LLMUnavailable) as caught:
+        with translate_api_errors():
+            raise _api_error(status)
+    assert caught.value.retryable is retryable
+    assert caught.value.status_code == status
+
+
+def test_overload_is_reported_as_unavailable_not_a_crash(monkeypatch, tmp_path):
+    """A 529 killed the Streamlit script with a traceback. It must not."""
+    from fda_agent.llm.errors import LLMUnavailable
+    from fda_agent.research import research
+
+    def boom(q, **kw):
+        raise LLMUnavailable("overloaded", retryable=True, status_code=529)
+
+    monkeypatch.setattr("fda_agent.research.route_question", boom)
+    r = research("How many devices were cleared in 2023?")
+    assert r.outcome == "unavailable"
+    assert "overloaded" in r.message
+    assert r.answer is None and r.profile is None
+
+
+def test_non_retryable_api_error_is_an_error_not_a_retry_prompt(monkeypatch):
+    from fda_agent.llm.errors import LLMUnavailable
+    from fda_agent.research import research
+
+    def boom(q, **kw):
+        raise LLMUnavailable("bad key", retryable=False, status_code=401)
+
+    monkeypatch.setattr("fda_agent.research.route_question", boom)
+    assert research("anything").outcome == "error"
+
+
+def test_client_retries_more_than_the_sdk_default():
+    """The SDK retries 5xx twice; a 529 outlasted that in practice."""
+    import os as _os
+
+    from fda_agent.env import load_env
+    from fda_agent.text_to_sql import _default_client
+
+    load_env()  # .env is read lazily; check after loading, not before
+    if not _os.environ.get("ANTHROPIC_API_KEY"):
+        pytest.skip("no credentials configured")
+    assert _default_client().max_retries >= 4

@@ -91,6 +91,10 @@ def render_answer(a) -> None:
         st.error(f"**Query blocked by the safety layer.**\n\n{a.message}", icon="🛑")
         return
 
+    if a.outcome == "unavailable":
+        st.warning(f"**Temporarily unreachable.**\n\n{a.message}", icon="⏳")
+        return
+
     if a.outcome == "error":
         st.error(a.message, icon="🚨")
         return
@@ -277,6 +281,16 @@ def main() -> None:
         st.caption(
             "This is a refusal, not a result of zero. No available source covers "
             "the question."
+        )
+        return
+
+    if r.outcome == "unavailable":
+        st.warning(
+            f"**The model is temporarily unreachable.**\n\n{r.message}", icon="⏳"
+        )
+        st.caption(
+            "Nothing is wrong with the question or the data — this is an upstream "
+            "outage. Ask again in a moment."
         )
         return
 
